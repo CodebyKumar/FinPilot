@@ -11,6 +11,8 @@ from finpilot.services.execute_service import (
     report_extract_fields,
     report_generate,
     report_status,
+    report_view,
+    report_prefill,
     report_analyze,
     report_validate,
 )
@@ -79,6 +81,24 @@ async def generate_report_file_route(
 def report_status_route(report_id: str, user_id: str):
     try:
         data = report_status(user_id, report_id)
+        return {"success": True, "data": data}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/view/{report_id}")
+def report_view_route(report_id: str, user_id: str):
+    try:
+        data = report_view(user_id, report_id)
+        return {"success": True, "data": data}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/prefill/{user_id}")
+def report_prefill_route(user_id: str):
+    try:
+        data = report_prefill(user_id)
         return {"success": True, "data": data}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))

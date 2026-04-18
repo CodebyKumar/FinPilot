@@ -57,6 +57,8 @@ Sound empathetic, helpful, and calm. Avoid robotic, overly formal, or generic AI
 Use plain language, natural transitions, and clear explanations that feel like a real person is guiding the user step by step.
 Write in Indian English, using wording that feels natural to users in India."""
 
+MAX_TTS_TEXT_LENGTH = 2500
+
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -121,12 +123,35 @@ class ChatResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class AgentRequest(ChatRequest):
+class AgentRequest(BaseModel):
+    """Agent request that accepts either messages or user_input format"""
+    messages: Optional[list[ChatMessage]] = None
+    user_input: Optional[str] = None
+    user_id: Optional[str] = "default"
+    model: str = "gpt-4o-mini"
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    reasoning_effort: Optional[str] = None
+    max_tokens: Optional[int] = None
+    wiki_grounding: Optional[bool] = None
     target_language_code: str = "en-IN"
+    language_code: Optional[str] = None  # Alias for target_language_code
     speaker: str = "shubh"
     tts_model: str = "bulbul:v3"
     pace: float = 1.0
     output_format: str = "wav"
+    
+    def get_messages(self) -> list[ChatMessage]:
+        """Convert to standard messages format"""
+        if self.messages:
+            return self.messages
+        if self.user_input:
+            return [ChatMessage(role="user", content=self.user_input)]
+        raise ValueError("Either 'messages' or 'user_input' must be provided")
+    
+    def get_language_code(self) -> str:
+        """Get language code from either field"""
+        return self.language_code or self.target_language_code
 
 
 class TranslateRequest(BaseModel):
@@ -291,6 +316,12 @@ async def _create_chat_completion(req: ChatRequest) -> dict[str, Any]:
 
 
 async def _generate_tts_audio(req: TTSRequest) -> bytes:
+    if len(req.text) > MAX_TTS_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"text is too long for TTS; maximum length is {MAX_TTS_TEXT_LENGTH} characters",
+        )
+
     payload = {
         "text": req.text,
         "target_language_code": req.target_language_code,
@@ -312,6 +343,25 @@ async def _generate_tts_audio(req: TTSRequest) -> bytes:
     if not response.audios:
         raise HTTPException(status_code=502, detail="Sarvam TTS returned no audio")
     return base64.b64decode(response.audios[0])
+
+
+def _trim_text_for_tts(text: str, max_length: int = MAX_TTS_TEXT_LENGTH) -> str:
+    normalized_text = text.strip()
+    if len(normalized_text) <= max_length:
+        return normalized_text
+
+    cutoff = max_length - 1
+    safe_cutoff = max(
+        normalized_text.rfind(".", 0, cutoff),
+        normalized_text.rfind("!", 0, cutoff),
+        normalized_text.rfind("?", 0, cutoff),
+        normalized_text.rfind("\n", 0, cutoff),
+        normalized_text.rfind(" ", 0, cutoff),
+    )
+    if safe_cutoff <= 0:
+        safe_cutoff = cutoff
+
+    return normalized_text[:safe_cutoff].rstrip() + "…"
 
 
 # ─── Health ─────────────────────────────────────────────────────────────────
@@ -509,24 +559,49 @@ async def agent_respond(req: AgentRequest):
     """
     Run messages → chat completion → TTS audio.
     Returns JSON with assistant text, raw chat response, and base64 audio.
+    
+    Accepts either:
+    - messages: list of {role, content} for multi-turn
+    - user_input: string for single user message
     """
-    chat = await _create_chat_completion(req)
-    assistant_text = _extract_assistant_text(chat)
-    audio_bytes = await _generate_tts_audio(TTSRequest(
-        text=assistant_text,
-        target_language_code=req.target_language_code,
-        speaker=req.speaker,
-        model=req.tts_model,
-        pace=req.pace,
-        output_format=req.output_format,
-    ))
+    try:
+        # Convert to standard ChatRequest format
+        messages = req.get_messages()
+        chat_req = ChatRequest(
+            messages=messages,
+            model=req.model,
+            temperature=req.temperature,
+            top_p=req.top_p,
+            max_tokens=req.max_tokens,
+            wiki_grounding=req.wiki_grounding,
+        )
+        
+        chat = await _create_chat_completion(chat_req)
+        assistant_text = _extract_assistant_text(chat)
+        spoken_text = _trim_text_for_tts(assistant_text)
+        
+        # Use language_code if provided, else use target_language_code
+        language_code = req.get_language_code()
+        
+        audio_bytes = await _generate_tts_audio(TTSRequest(
+            text=spoken_text,
+            target_language_code=language_code,
+            speaker=req.speaker,
+            model=req.tts_model,
+            pace=req.pace,
+            output_format=req.output_format,
+        ))
 
-    return AgentResponse(
-        assistant_text=assistant_text,
-        chat=chat,
-        audio_format=req.output_format,
-        audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
-    )
+        return AgentResponse(
+            assistant_text=assistant_text,
+            chat=chat,
+            audio_format=req.output_format,
+            audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
 
 
 # ─── TTS REST ───────────────────────────────────────────────────────────────

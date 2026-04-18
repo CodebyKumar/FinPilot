@@ -159,7 +159,10 @@ def _extract_from_tables(pdf: pdfplumber.PDF) -> list[Transaction]:
 def _extract_from_lines(text: str) -> list[Transaction]:
     txns: list[Transaction] = []
     lines = [_safe_text(line) for line in text.splitlines() if _safe_text(line)]
-    date_pattern = re.compile(r"\b(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4})\b")
+    date_pattern = re.compile(
+        r"\b(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4}|\d{4}[\-/]\d{1,2}[\-/]\d{1,2}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})\b"
+    )
+    amount_pattern = re.compile(r"[-+]?\d[\d,]*(?:\.\d{1,2})?")
 
     for line in lines:
         date_match = date_pattern.search(line)
@@ -170,11 +173,21 @@ def _extract_from_lines(text: str) -> list[Transaction]:
         if date_val is None:
             continue
 
-        amount_matches = re.findall(r"[-+]?[0-9,]+\.[0-9]{2}", line)
-        if not amount_matches:
+        amount_matches = amount_pattern.findall(line)
+        numeric_candidates = []
+        for raw in amount_matches:
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            # Skip tokens likely to be day/month/year fragments
+            if len(stripped.replace(",", "")) <= 2:
+                continue
+            numeric_candidates.append(stripped)
+
+        if not numeric_candidates:
             continue
 
-        raw_amount = amount_matches[-1]
+        raw_amount = numeric_candidates[-1]
         amount_value = _safe_amount(raw_amount)
         if amount_value == 0:
             continue

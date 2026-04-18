@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+/* Root theme variables */
+:root {
+  --bg: #0D0F12;
+  --bg2: #111318;
+  --bg3: #16191F;
+  --border: #1E2230;
+  --amber: #F59E0B;
+  --amber-dim: #7A4F00;
+  --emerald: #10B981;
+  --rose: #F43F5E;
+  --indigo: #6366F1;
+  --sky: #38BDF8;
+  --text: #E4E7EC;
+  --muted: #6B7280;
+  --card-glow-amber: rgba(245, 158, 11, 0.08);
+  --card-glow-emerald: rgba(16, 185, 129, 0.08);
+  --card-glow-rose: rgba(244, 63, 94, 0.08);
+}
+
+/* Global styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+}
+
+code, pre {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Utility classes */
+.text-muted {
+  color: var(--muted);
+}
+
+.text-amber {
+  color: var(--amber);
+}
+
+.text-emerald {
+  color: var(--emerald);
+}
+
+.text-rose {
+  color: var(--rose);
+}
+
+.text-indigo {
+  color: var(--indigo);
+}
+
+.bg-glow-amber {
+  background-color: var(--card-glow-amber);
+}
+
+.bg-glow-emerald {
+  background-color: var(--card-glow-emerald);
+}
+
+.bg-glow-rose {
+  background-color: var(--card-glow-rose);
+}
+
+/* Focus states */
+:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.animate-slideInFromLeft {
+  animation: slideInFromLeft 0.3s ease-out;
+}
+
+.animate-slideInFromTop {
+  animation: slideInFromTop 0.3s ease-out;
+}

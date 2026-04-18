@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+import json
 import os
 import re
 from uuid import uuid4
@@ -10,6 +11,7 @@ from typing import Any
 from dateutil import parser as date_parser
 from fastapi import BackgroundTasks
 
+from finpilot import config
 from finpilot.db.mongo import _get_db, get_user, save_user, save_transaction
 from finpilot.api.deps import fetch_user_transactions
 from finpilot.models.transaction import Transaction
@@ -118,20 +120,122 @@ def _normalize_key(value: str) -> str:
 
 
 def _extract_report_fields(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    report_name = payload.get("report_name", "Generic Report")
     file_path = payload.get("file_path")
     if file_path and os.path.exists(file_path):
         parsed = extract_fields_from_report_pdf(file_path)
         fields = parsed.get("fields", [])
         if fields:
-            return fields
+            return _refine_report_fields_with_ai(report_name, parsed.get("template_text", ""), fields)
 
     template_text = payload.get("report_template_text")
     if template_text:
         fields = extract_fields_from_template_text(str(template_text))
         if fields:
-            return fields
+            return _refine_report_fields_with_ai(report_name, str(template_text), fields)
 
     return _extract_fields_from_payload(payload)
+
+
+def _coerce_field_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for index, item in enumerate(value, start=1):
+        if isinstance(item, dict):
+            normalized.append({
+                "field_id": _safe_text(item.get("field_id") or item.get("id") or f"A{index}"),
+                "field_name": _safe_text(item.get("field_name") or item.get("name") or item.get("label") or f"Field {index}"),
+                "value": item.get("value"),
+                "status": _safe_text(item.get("status") or ("filled" if item.get("value") not in (None, "") else "pending")),
+            })
+        elif isinstance(item, str):
+            normalized.append({
+                "field_id": f"A{index}",
+                "field_name": _safe_text(item),
+                "value": None,
+                "status": "pending",
+            })
+    return normalized
+
+
+def _refine_report_fields_with_ai(report_name: str, extracted_text: str, fallback_fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    text = _safe_text(extracted_text)
+    if not text:
+        return _coerce_field_list(fallback_fields)
+
+    api_key = config.OPENAI_API_KEY
+    if not api_key:
+        return _coerce_field_list(fallback_fields)
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You extract Indian tax/report form fields from noisy PDF/OCR text. "
+                        "Remove gibberish, repeated headers/footers, page numbers, and unrelated text. "
+                        "Return ONLY valid JSON with this shape: {\"fields\": [{\"field_id\": \"A1\", \"field_name\": \"...\", \"value\": null, \"status\": \"pending|filled\"}]}. "
+                        "Keep only genuine form fields that belong to the report. Prefer concise field names."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Report type: {report_name}\n"
+                        f"Noisy PDF text:\n{text[:20000]}\n\n"
+                        "Existing candidate fields (use as hints, but remove noise):\n"
+                        f"{json.dumps(fallback_fields[:100], ensure_ascii=False)}"
+                    ),
+                },
+            ],
+        )
+
+        content = response.choices[0].message.content or ""
+        parsed = json.loads(content)
+        ai_fields = _coerce_field_list(parsed.get("fields", []))
+        return ai_fields if ai_fields else _coerce_field_list(fallback_fields)
+    except Exception:
+        return _coerce_field_list(fallback_fields)
+
+
+def _prefill_report_fields_from_profile(user_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    profile_values = _profile_value_map(user_id)
+    ledger_values = _ledger_value_map(user_id)
+    combined_values = {**ledger_values, **profile_values}
+    filled: list[dict[str, Any]] = []
+
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+
+        field_name = _safe_text(field.get("field_name") or field.get("name") or "")
+        existing_value = field.get("value")
+        selected_value = existing_value
+
+        if selected_value in (None, "", "-", "—", "N/A", "NA"):
+            selected_value = _match_value_for_field(field_name, combined_values)
+
+        status = field.get("status") or "pending"
+        if selected_value not in (None, ""):
+            status = "filled"
+
+        filled.append({
+            "field_id": field.get("field_id") or field.get("id") or f"A{len(filled) + 1}",
+            "field_name": field_name or f"Field {len(filled) + 1}",
+            "value": selected_value,
+            "status": status,
+            "source": field.get("source") or ("profile" if selected_value not in (None, "") else "manual"),
+        })
+
+    return filled
 
 
 def _match_value_for_field(field_name: str, values: dict[str, Any]):
@@ -317,7 +421,7 @@ def _task_update_profile(user_id: str, payload: dict[str, Any]) -> dict[str, Any
 
     _profiles_collection().update_one(
         {"user_id": user_id},
-        {"$set": merged, "$setOnInsert": {"created_at": _now_iso()}},
+        {"$set": merged},
         upsert=True,
     )
 
@@ -438,9 +542,16 @@ def _task_bookkeeping_upload_statement(user_id: str, payload: dict[str, Any]) ->
     if not file_path:
         return {"uploaded": False, "error": "file_path is required"}
     transactions = ingest_pdf(file_path, user_id)
+    count = len(transactions)
+    message = "Statement parsed successfully" if count > 0 else (
+        "No transactions could be parsed from this statement. "
+        "The file may be image-only/scanned, password-protected, or in an unsupported layout."
+    )
     return {
         "uploaded": True,
-        "count": len(transactions),
+        "parsed": count > 0,
+        "count": count,
+        "message": message,
         "transactions": [t.to_dict() for t in transactions],
     }
 
@@ -628,9 +739,13 @@ def _ledger_value_map(user_id: str) -> dict[str, Any]:
 
 def _task_report_extract_fields(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     extracted_fields = _extract_report_fields(payload)
+    filled_entities = _prefill_report_fields_from_profile(user_id, extracted_fields)
     return {
         "report_name": payload.get("report_name", "Generic Report"),
         "fields": extracted_fields,
+        "filled_entities": filled_entities,
+        "prefill_fields": filled_entities,
+        "profile_values": _profile_value_map(user_id),
     }
 
 
@@ -669,6 +784,8 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
 
         filled.append(normalized_field)
 
+    prefilled_fields = _prefill_report_fields_from_profile(user_id, filled)
+
     profile_doc = _profiles_collection().find_one(
         {"user_id": user_id, "deleted": {"$ne": True}},
         {"_id": 0},
@@ -706,6 +823,7 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
         "report_id": report_id,
         "status": report_doc["status"],
         "fields": filled,
+        "filled_entities": prefilled_fields,
         "missing_fields": missing_fields,
         "required_user_inputs": required_user_inputs,
     }
@@ -721,6 +839,70 @@ def _task_report_status(user_id: str, payload: dict[str, Any]) -> dict[str, Any]
         return {"found": False, "report_id": report_id}
 
     return {"found": True, "report": report}
+
+
+def _task_report_view(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    report_id = payload.get("report_id")
+    if not report_id:
+        return {"found": False, "error": "report_id is required"}
+
+    report = _reports_collection().find_one({"report_id": report_id, "user_id": user_id}, {"_id": 0})
+    if not report:
+        return {"found": False, "report_id": report_id}
+
+    fields = report.get("fields", []) if isinstance(report.get("fields"), list) else []
+    filled_entities = [
+        field for field in fields
+        if isinstance(field, dict) and field.get("value") not in (None, "")
+    ]
+    missing_entities = [
+        field for field in fields
+        if isinstance(field, dict) and field.get("value") in (None, "")
+    ]
+
+    return {
+        "found": True,
+        "report_id": report_id,
+        "report_name": report.get("report_name"),
+        "status": report.get("status"),
+        "report": report,
+        "filled_entities": filled_entities,
+        "missing_entities": missing_entities,
+        "required_user_inputs": report.get("required_user_inputs", []),
+        "missing_fields": report.get("missing_fields", []),
+        "profile_missing_required": report.get("profile_missing_required", []),
+    }
+
+
+def _task_report_prefill(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    profile_result = get_profile(user_id)
+    profile_doc = profile_result.get("profile", {}) if isinstance(profile_result, dict) else {}
+    user_doc = profile_result.get("user", {}) if isinstance(profile_result, dict) else {}
+
+    profile_values = _profile_value_map(user_id)
+    ledger_values = _ledger_value_map(user_id)
+
+    form_fields = [
+        {"field_id": "full_name", "field_name": "Full Name", "value": profile_values.get("name") or profile_values.get("full name"), "source": "profile", "status": "filled"},
+        {"field_id": "phone", "field_name": "Phone", "value": profile_values.get("phone") or profile_values.get("mobile"), "source": "profile", "status": "filled"},
+        {"field_id": "email", "field_name": "Email", "value": profile_values.get("email"), "source": "profile", "status": "filled"},
+        {"field_id": "pan", "field_name": "PAN", "value": profile_values.get("pan"), "source": "profile", "status": "filled"},
+        {"field_id": "aadhaar", "field_name": "Aadhaar", "value": profile_values.get("aadhaar"), "source": "profile", "status": "filled"},
+        {"field_id": "business_name", "field_name": "Business Name", "value": profile_values.get("business name"), "source": "profile", "status": "filled"},
+        {"field_id": "entity_type", "field_name": "Entity Type", "value": profile_values.get("entity type"), "source": "profile", "status": "filled"},
+        {"field_id": "gstin", "field_name": "GSTIN", "value": profile_values.get("gstin"), "source": "profile", "status": "filled"},
+        {"field_id": "annual_turnover", "field_name": "Annual Turnover", "value": profile_values.get("annual turnover"), "source": "profile", "status": "filled"},
+        {"field_id": "net_cash_flow", "field_name": "Net Cash Flow", "value": ledger_values.get("net cash flow"), "source": "ledger", "status": "filled"},
+        {"field_id": "total_income", "field_name": "Total Income", "value": profile_values.get("total income") or ledger_values.get("total revenue"), "source": "ledger", "status": "filled"},
+    ]
+
+    return {
+        "profile": profile_doc,
+        "user": user_doc,
+        "prefill_fields": form_fields,
+        "profile_values": profile_values,
+        "ledger_values": ledger_values,
+    }
 
 
 def _analyze_fields(fields: list[dict[str, Any]], profile_values: dict[str, Any]) -> dict[str, Any]:
@@ -912,6 +1094,8 @@ TASK_HANDLERS = {
     "report_extract_fields": _task_report_extract_fields,
     "report_generate": _task_report_generate,
     "report_status": _task_report_status,
+    "report_view": _task_report_view,
+    "report_prefill": _task_report_prefill,
     "report_analyze": _task_report_analyze,
     "report_validate": _task_report_validate,
     "deadline_add": _task_deadline_add,
@@ -1096,6 +1280,14 @@ def report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def report_status(user_id: str, report_id: str) -> dict[str, Any]:
     return _task_report_status(user_id, {"report_id": report_id})
+
+
+def report_view(user_id: str, report_id: str) -> dict[str, Any]:
+    return _task_report_view(user_id, {"report_id": report_id})
+
+
+def report_prefill(user_id: str) -> dict[str, Any]:
+    return _task_report_prefill(user_id, {})
 
 
 def report_analyze(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:

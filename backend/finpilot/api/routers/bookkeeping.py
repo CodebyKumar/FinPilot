@@ -25,7 +25,8 @@ router = APIRouter(prefix="/bookkeeping", tags=["Bookkeeping"])
 
 @router.post("/upload-statement")
 async def upload_statement_route(user_id: str = Form(...), file: UploadFile = File(...)):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+    suffix = Path(file.filename or "statement.pdf").suffix or ".pdf"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name

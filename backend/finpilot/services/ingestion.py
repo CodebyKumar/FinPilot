@@ -8,7 +8,7 @@ Each ingested record is classified by the GST agent before being persisted.
 import logging
 
 from finpilot.models.transaction import Transaction
-from finpilot.services.parsers.pdf_parser import parse_pdf
+from finpilot.services.parsers.statement_parser import parse_statement_file
 from finpilot.db.mongo import save_transaction
 from finpilot.agents.gst_agent import classify_transaction
 
@@ -31,14 +31,19 @@ def _apply_classification(txn: Transaction) -> None:
         txn.confidence = classification["confidence"]
 
 
-def ingest_pdf(filepath: str, user_id: str) -> list[Transaction]:
+def ingest_statement(filepath: str, user_id: str) -> list[Transaction]:
     """
-    Parse and persist all transactions from a bank statement PDF.
+    Parse and persist all transactions from a bank statement file.
     Returns the list of saved Transaction objects.
     """
-    results = parse_pdf(filepath)
+    results = parse_statement_file(filepath)
     for txn in results:
         _apply_classification(txn)
         save_transaction(txn, user_id)
-    logger.info("PDF ingestion: saved %d transactions for user %s", len(results), user_id)
+    logger.info("Statement ingestion: saved %d transactions for user %s", len(results), user_id)
     return results
+
+
+def ingest_pdf(filepath: str, user_id: str) -> list[Transaction]:
+    """Backward-compatible alias for statement ingestion."""
+    return ingest_statement(filepath, user_id)
