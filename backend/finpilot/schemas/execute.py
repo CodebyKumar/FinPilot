@@ -29,6 +29,7 @@ class TaskName(str, Enum):
     deadline_add = "deadline_add"
     deadline_get = "deadline_get"
     deadline_delete = "deadline_delete"
+    deadline_send_reminders = "deadline_send_reminders"
     assistant_chat = "assistant_chat"
 
 

@@ -23,6 +23,7 @@ from finpilot.services.parsers.report_parser import (
     extract_fields_from_report_pdf,
     extract_filled_fields_from_pdf,
 )
+from finpilot.tasks.deadline_worker import scan_deadlines_once, dispatch_queued_notifications
 from finpilot.utils.profile_security import (
     decrypt_sensitive_value,
     encrypt_sensitive_value,
@@ -861,6 +862,26 @@ def _task_deadline_delete(user_id: str, payload: dict[str, Any]) -> dict[str, An
     return {"deleted": result.deleted_count > 0, "deadline_id": deadline_id}
 
 
+def _task_deadline_send_reminders(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    limit_raw = payload.get("limit", 50)
+    try:
+        limit = max(1, min(int(limit_raw), 500))
+    except Exception:
+        limit = 50
+
+    queued_new = scan_deadlines_once(user_id=user_id)
+    sent = dispatch_queued_notifications(limit=limit, user_id=user_id)
+    still_queued = _get_db()["notifications"].count_documents({"user_id": user_id, "status": "queued"})
+
+    return {
+        "user_id": user_id,
+        "queued_new": queued_new,
+        "sent": sent,
+        "still_queued": still_queued,
+        "limit": limit,
+    }
+
+
 def _task_assistant_chat(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     message = payload.get("message") or payload.get("query")
     if not message:
@@ -896,6 +917,7 @@ TASK_HANDLERS = {
     "deadline_add": _task_deadline_add,
     "deadline_get": _task_deadline_get,
     "deadline_delete": _task_deadline_delete,
+    "deadline_send_reminders": _task_deadline_send_reminders,
     "assistant_chat": _task_assistant_chat,
 }
 
@@ -1094,6 +1116,10 @@ def deadline_get(user_id: str) -> dict[str, Any]:
 
 def deadline_delete(user_id: str, deadline_id: str) -> dict[str, Any]:
     return _task_deadline_delete(user_id, {"deadline_id": deadline_id})
+
+
+def deadline_send_reminders(user_id: str, limit: int = 50) -> dict[str, Any]:
+    return _task_deadline_send_reminders(user_id, {"limit": limit})
 
 
 def assistant_chat(user_id: str, message: str) -> dict[str, Any]:

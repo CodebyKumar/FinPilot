@@ -66,6 +66,29 @@ class ReportRequest(BaseModel):
     fields: list[dict[str, Any] | str] = Field(default_factory=list)
 
 
+class OverallReportGenerateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    report_id: str | None = None
+    report_name: str | None = "Overall Financial Report"
+    expected_balance: float | None = None
+
+
+class OverallReportPdfRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    report_id: str | None = None
+    report_name: str | None = "Overall Financial Report"
+    expected_balance: float | None = None
+    output_dir: str | None = None
+
+
+class OverallReportEmailRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    report_id: str
+    email: str | None = None
+    attach_pdf: bool = True
+    output_dir: str | None = None
+
+
 class DeadlineAddRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
     deadline_id: str | None = None

@@ -28,5 +28,17 @@ OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 PROFILE_ENCRYPTION_SECRET: str = os.getenv("PROFILE_ENCRYPTION_SECRET", "finpilot-dev-secret")
 DEADLINE_SCAN_INTERVAL_SECONDS: int = int(os.getenv("DEADLINE_SCAN_INTERVAL_SECONDS", "3600"))
 
+# ── Email / Gmail SMTP ────────────────────────────────────────────────────────
+SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
+SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes"}
+REMINDER_EMAIL_TO: str = os.getenv("REMINDER_EMAIL_TO", "")
+
+# ── Report Export ──────────────────────────────────────────────────────────────
+OVERALL_REPORT_OUTPUT_DIR: str = os.getenv("OVERALL_REPORT_OUTPUT_DIR", "data/generated/overall_reports")
+
 # ── Seeder script ──────────────────────────────────────────────────────────────
 API_BASE: str = os.getenv("API_BASE", "http://localhost:8000")

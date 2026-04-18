@@ -49,6 +49,8 @@ def init_db() -> None:
         db["profiles"].create_index([("user_id", ASCENDING)], unique=True)
         db["transactions"].create_index([("user_id", ASCENDING), ("date", DESCENDING)])
         db["reports"].create_index([("user_id", ASCENDING), ("status", ASCENDING), ("created_at", DESCENDING)])
+        db["overall_reports"].create_index([("report_id", ASCENDING)], unique=True)
+        db["overall_reports"].create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
         db["deadlines"].create_index([("user_id", ASCENDING), ("due_date", ASCENDING), ("status", ASCENDING)])
         db["jobs"].create_index([("job_id", ASCENDING)], unique=True)
         db["jobs"].create_index([("status", ASCENDING), ("created_at", DESCENDING)])
