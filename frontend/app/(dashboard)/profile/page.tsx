@@ -343,9 +343,6 @@ export default function ProfilePage() {
               onChange={(e) => updateField('dateOfBirth', e.target.value)}
               disabled={isLoading || isSaving}
             />
-            <Button variant="primary" onClick={handleSaveProfile} disabled={isLoading || isSaving}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
           </div>
         </Card>
 
@@ -387,9 +384,6 @@ export default function ProfilePage() {
               onChange={(e) => updateField('gstNumber', e.target.value.toUpperCase())}
               disabled={isLoading || isSaving}
             />
-            <Button variant="primary" onClick={handleSaveProfile} disabled={isLoading || isSaving}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
           </div>
         </Card>
 
@@ -420,9 +414,6 @@ export default function ProfilePage() {
               onChange={(e) => updateField('bankName', e.target.value)}
               disabled={isLoading || isSaving}
             />
-            <Button variant="primary" onClick={handleSaveProfile} disabled={isLoading || isSaving}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
           </div>
         </Card>
 
@@ -453,11 +444,14 @@ export default function ProfilePage() {
               onChange={(e) => updateField('pinCode', e.target.value)}
               disabled={isLoading || isSaving}
             />
-            <Button variant="primary" onClick={handleSaveProfile} disabled={isLoading || isSaving}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
           </div>
         </Card>
+      </div>
+
+      <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="primary" onClick={handleSaveProfile} disabled={isLoading || isSaving}>
+          {isSaving ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
     </PageShell>
   );

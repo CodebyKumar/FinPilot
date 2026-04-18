@@ -9,26 +9,23 @@ interface Message {
 }
 
 const styles = `
-:root {
-  --page: #f7f9fb;
-  --ink: #171717;
-  --muted: #5f6368;
-  --line: #d7dde3;
-  --panel: #ffffff;
-  --teal: #0f766e;
-  --teal-dark: #115e59;
-  --rose: #be123c;
-  --green: #15803d;
-  --amber: #b45309;
-  --shadow: 0 16px 40px rgba(23, 23, 23, 0.08);
-}
-
 .voice-assistant-container {
+  --ink: var(--text);
+  --muted: #9ca3af;
+  --line: var(--border);
+  --panel: var(--bg2);
+  --teal: var(--indigo);
+  --teal-dark: #5458ee;
+  --rose: var(--rose);
+  --green: var(--emerald);
+  --amber: var(--amber);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+
   display: grid;
   gap: 20px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 24px;
-  background: var(--page);
+  background: var(--bg);
 }
 
 .panel {
@@ -64,13 +61,14 @@ const styles = `
 
 .tag {
   align-self: flex-start;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--ink);
   flex: 0 0 auto;
   font-size: 0.8rem;
   font-weight: 800;
   padding: 6px 9px;
-  background: var(--teal);
+  background: var(--bg3);
 }
 
 .body {
@@ -81,6 +79,25 @@ const styles = `
 
 .agent-panel {
   grid-column: 1 / -1;
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.agent-panel .panel-head,
+.agent-panel .body {
+  background: var(--bg);
+}
+
+.agent-panel .panel-head {
+  border-bottom-color: var(--line);
+}
+
+.agent-panel .panel-head h2 {
+  color: var(--ink);
+}
+
+.agent-panel .panel-head p {
+  color: var(--muted);
 }
 
 .agent-layout {
@@ -102,7 +119,7 @@ const styles = `
 }
 
 .button {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 700;
@@ -133,7 +150,8 @@ const styles = `
 }
 
 .button.secondary {
-  background: #e8eef2;
+  background: var(--bg3);
+  border-color: var(--line);
   color: var(--ink);
 }
 
@@ -149,13 +167,13 @@ const styles = `
   min-height: 300px;
   overflow: auto;
   padding: 14px;
-  background: #f3f6f8;
+  background: var(--bg3);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
 .turn {
-  background: #ffffff;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -169,11 +187,11 @@ const styles = `
 }
 
 .turn.user strong {
-  color: var(--rose);
+  color: var(--indigo);
 }
 
 .turn.assistant strong {
-  color: var(--teal);
+  color: var(--green);
 }
 
 .turn p {
@@ -190,7 +208,7 @@ const styles = `
   font-size: 0.94rem;
   min-height: 22px;
   padding: 8px 12px;
-  background: #f3f6f8;
+  background: var(--bg3);
   border-radius: 6px;
 }
 
@@ -207,14 +225,14 @@ const styles = `
 }
 
 .meter {
-  background: #e8eef2;
+  background: var(--bg3);
   border-radius: 8px;
   height: 10px;
   overflow: hidden;
 }
 
 .meter span {
-  background: var(--rose);
+  background: var(--indigo);
   display: block;
   height: 100%;
   transition: width 160ms ease;
@@ -235,7 +253,7 @@ const styles = `
 
 .form-group select,
 .form-group input {
-  background: #ffffff;
+  background: var(--bg3);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
@@ -247,8 +265,8 @@ const styles = `
 
 .form-group select:focus,
 .form-group input:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 audio {
@@ -258,6 +276,25 @@ audio {
 .controls-section {
   display: grid;
   gap: 12px;
+}
+
+.feature-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.feature-item-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.feature-item-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 @media (max-width: 920px) {
@@ -718,30 +755,30 @@ export default function AssistantPage() {
           </div>
 
           <div className="body">
-            <div style={{ display: 'grid', gap: '1rem' }}>
+            <div className="feature-list">
               <div>
-                <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', fontWeight: 700, color: 'var(--ink)' }}>
+                <h3 className="feature-item-title">
                   Tax & Finance Support
                 </h3>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                <p className="feature-item-desc">
                   Ask about ITR filing, deductions, GST compliance, tax savings strategies, and more.
                 </p>
               </div>
 
               <div>
-                <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', fontWeight: 700, color: 'var(--ink)' }}>
+                <h3 className="feature-item-title">
                   Multilingual
                 </h3>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                <p className="feature-item-desc">
                   Speak in English, Hindi, Marathi, Tamil, Telugu, Kannada, or Malayalam.
                 </p>
               </div>
 
               <div>
-                <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', fontWeight: 700, color: 'var(--ink)' }}>
+                <h3 className="feature-item-title">
                   Natural Conversation
                 </h3>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                <p className="feature-item-desc">
                   Get conversational answers with step-by-step guidance for tax compliance.
                 </p>
               </div>

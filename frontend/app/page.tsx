@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Bot, CalendarDays, ChartNoAxesCombined, FileText, Lock, Zap } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -50,12 +51,12 @@ export default function Home() {
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
             {[
-              { title: '📊 Intelligent Bookkeeping', description: 'Auto-parse statements and invoices with AI-powered categorization' },
-              { title: '📋 Smart Report Filing', description: 'Generate and validate tax reports with zero compliance errors' },
-              { title: '💡 AI Assistant', description: 'Chat with your personal finance advisor for tax strategies' },
-              { title: '📅 Deadline Tracking', description: 'Never miss a filing deadline with intelligent reminders' },
-              { title: '🔒 Secure & Private', description: 'Bank-grade security for all your financial data' },
-              { title: '⚡ Real-time Insights', description: 'Monitor profit, expenses, and tax liability instantly' },
+              { title: 'Intelligent Bookkeeping', description: 'Auto-parse statements and invoices with AI-powered categorization', Icon: ChartNoAxesCombined },
+              { title: 'Smart Report Filing', description: 'Generate and validate tax reports with zero compliance errors', Icon: FileText },
+              { title: 'AI Assistant', description: 'Chat with your personal finance advisor for tax strategies', Icon: Bot },
+              { title: 'Deadline Tracking', description: 'Never miss a filing deadline with intelligent reminders', Icon: CalendarDays },
+              { title: 'Secure & Private', description: 'Bank-grade security for all your financial data', Icon: Lock },
+              { title: 'Real-time Insights', description: 'Monitor profit, expenses, and tax liability instantly', Icon: Zap },
             ].map((feature, idx) => (
               <div
                 key={idx}
@@ -66,7 +67,10 @@ export default function Home() {
                   borderRadius: '0.75rem',
                 }}
               >
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{feature.title}</h3>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <feature.Icon size={18} />
+                  <span>{feature.title}</span>
+                </h3>
                 <p style={{ color: 'var(--muted)', fontSize: '0.95rem' }}>{feature.description}</p>
               </div>
             ))}

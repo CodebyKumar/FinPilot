@@ -1,5 +1,7 @@
 'use client';
 
+import { Bell, User } from 'lucide-react';
+
 export function Topbar() {
   return (
     <header
@@ -38,11 +40,13 @@ export function Topbar() {
             background: 'none',
             border: 'none',
             color: 'var(--text)',
-            fontSize: '1.25rem',
             cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          🔔
+          <Bell size={20} />
         </button>
         <button
           style={{
@@ -55,10 +59,10 @@ export function Topbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1rem',
+            color: 'white',
           }}
         >
-          👤
+          <User size={18} />
         </button>
       </div>
     </header>

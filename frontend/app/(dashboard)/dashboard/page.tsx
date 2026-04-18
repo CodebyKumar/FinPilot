@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertTriangle, ClipboardList, DollarSign, Download, Lightbulb, Receipt, TrendingUp } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,16 +12,21 @@ export default function DashboardPage() {
       title="Financial Dashboard"
       subtitle="Overview of your business financials and pending actions"
       headerAction={
-        <Button variant="primary">📥 Upload Statement</Button>
+        <Button variant="primary">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+            <Download size={16} />
+            <span>Upload Statement</span>
+          </span>
+        </Button>
       }
     >
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         {[
-          { label: 'Total Revenue', value: '₹5,42,500', trend: '+12%', icon: '📈' },
-          { label: 'Total Expenses', value: '₹2,10,300', trend: '+5%', icon: '💸' },
-          { label: 'Net Profit', value: '₹3,32,200', trend: '+18%', icon: '💰' },
-          { label: 'Tax Liability', value: '₹49,830', trend: '-8%', icon: '📋' },
+          { label: 'Total Revenue', value: '₹5,42,500', trend: '+12%', Icon: TrendingUp },
+          { label: 'Total Expenses', value: '₹2,10,300', trend: '+5%', Icon: Receipt },
+          { label: 'Net Profit', value: '₹3,32,200', trend: '+18%', Icon: DollarSign },
+          { label: 'Tax Liability', value: '₹49,830', trend: '-8%', Icon: ClipboardList },
         ].map((kpi) => (
           <Card key={kpi.label}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -33,7 +39,9 @@ export default function DashboardPage() {
                   {kpi.trend}
                 </p>
               </div>
-              <div style={{ fontSize: '2rem' }}>{kpi.icon}</div>
+              <div style={{ color: 'var(--muted)', display: 'inline-flex', alignItems: 'center' }}>
+                <kpi.Icon size={30} />
+              </div>
             </div>
           </Card>
         ))}
@@ -105,9 +113,18 @@ export default function DashboardPage() {
       <Card title="AI Insights" subtitle="Smart recommendations from your CFO assistant">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {[
-            '💡 Your office supplies expense increased by 25% this month. Consider bulk purchasing to reduce costs.',
-            '📊 Current tax savings potential: ₹18,500. Review Section 80C investments.',
-            '⚠️ 3 invoices from May are still unpaid. Send reminders to maintain cash flow.',
+            {
+              Icon: Lightbulb,
+              text: 'Your office supplies expense increased by 25% this month. Consider bulk purchasing to reduce costs.',
+            },
+            {
+              Icon: TrendingUp,
+              text: 'Current tax savings potential: ₹18,500. Review Section 80C investments.',
+            },
+            {
+              Icon: AlertTriangle,
+              text: '3 invoices from May are still unpaid. Send reminders to maintain cash flow.',
+            },
           ].map((insight, idx) => (
             <div
               key={idx}
@@ -118,7 +135,10 @@ export default function DashboardPage() {
                 borderLeft: '3px solid var(--indigo)',
               }}
             >
-              <p style={{ margin: 0, color: 'var(--text)' }}>{insight}</p>
+              <p style={{ margin: 0, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <insight.Icon size={16} />
+                <span>{insight.text}</span>
+              </p>
             </div>
           ))}
         </div>

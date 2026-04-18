@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Paperclip } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -564,7 +565,10 @@ export default function ReportsPage() {
       headerAction={
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <Button variant="secondary" onClick={openFilePicker} disabled={isBusy}>
-            {selectedFile ? `📎 ${selectedFile.name}` : 'Attach File'}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Paperclip size={16} />
+              <span>{selectedFile ? selectedFile.name : 'Attach File'}</span>
+            </span>
           </Button>
           <Button variant="primary" onClick={runGenerateNewReport} disabled={isBusy || !hasSelectedReportType}>
             {isBusy ? 'Working...' : hasSelectedReportType ? '+ Generate New Report' : 'Select Report Type'}
@@ -647,7 +651,7 @@ export default function ReportsPage() {
                 Download Report
               </Button>
               <Button variant="secondary" onClick={sendCurrentReportViaSmtp} disabled={!canViewReport || isBusy}>
-                Send via SMTP
+                Send via Email
               </Button>
             </div>
           </div>

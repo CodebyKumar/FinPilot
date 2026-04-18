@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { CheckCircle2, FileText, Upload } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -266,14 +267,24 @@ export default function BookkeepingPage() {
             onClick={triggerStatementPicker}
             disabled={isStatementUploading}
           >
-            {isStatementUploading ? 'Uploading Statement...' : '📤 Upload Statement'}
+            {isStatementUploading ? 'Uploading Statement...' : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                <Upload size={16} />
+                <span>Upload Statement</span>
+              </span>
+            )}
           </Button>
           <Button
             variant="secondary"
             onClick={triggerInvoicePicker}
             disabled={isInvoiceUploading}
           >
-            {isInvoiceUploading ? 'Uploading Invoice...' : '📄 Upload Invoice'}
+            {isInvoiceUploading ? 'Uploading Invoice...' : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                <FileText size={16} />
+                <span>Upload Invoice</span>
+              </span>
+            )}
           </Button>
         </div>
       }
@@ -472,8 +483,9 @@ export default function BookkeepingPage() {
             borderRadius: '0.5rem',
             borderLeft: '3px solid var(--emerald)',
           }}>
-            <p style={{ margin: 0, color: 'var(--text)' }}>
-              ✓ All systems synced. Your bookkeeping is up to date.
+            <p style={{ margin: 0, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+              <CheckCircle2 size={16} color="var(--emerald)" />
+              <span>All systems synced. Your bookkeeping is up to date.</span>
             </p>
             {latestStatementResult && (
               <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text)' }}>

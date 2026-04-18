@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -220,8 +221,9 @@ export default function DeadlinesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>{deadline.title}</h3>
-                  <p style={{ margin: '0.5rem 0 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}>
-                    📅 {deadline.due_date} • {deadline.type}
+                  <p style={{ margin: '0.5rem 0 0 0', color: 'var(--muted)', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <CalendarDays size={14} />
+                    <span>{deadline.due_date} • {deadline.type}</span>
                   </p>
                   {deadline.meta?.financial_year_end && (
                     <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
