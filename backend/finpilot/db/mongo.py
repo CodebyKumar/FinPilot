@@ -29,6 +29,11 @@ def _get_db():
     return _get_client()[config.DB_NAME]
 
 
+def get_compliance_calendar_collection():
+    """Return the compliance_calendar collection."""
+    return _get_db()["compliance_calendar"]
+
+
 def init_db() -> None:
     """
     Perform any one-time database initialisation tasks.

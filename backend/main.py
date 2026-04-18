@@ -10,7 +10,7 @@ import uvicorn
 
 from finpilot import config
 from finpilot.db.mongo import init_db
-from finpilot.api.routers import users, ingest, agents
+from finpilot.api.routers import users, ingest, agents, calendar
 
 
 @asynccontextmanager
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(ingest.router)
 app.include_router(agents.router)
+app.include_router(calendar.router)
 
 
 @app.get("/health", tags=["System"])

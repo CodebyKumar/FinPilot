@@ -8,7 +8,7 @@ import tempfile
 from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
 
-from finpilot.ingestion import ingest_pdf
+from finpilot.services.ingestion import ingest_pdf
 
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
 

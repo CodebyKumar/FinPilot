@@ -864,10 +864,10 @@
       <span class="nav-icon"></span> Action Cards
     </a>
     <a onclick="navigate('what-if')" id="nav-what-if">
-      <span class="nav-icon">🧮</span> What-If Simulator
+      <span class="nav-icon"></span> What-If Simulator
     </a>
     <a onclick="navigate('reports-hub')" id="nav-reports-hub">
-      <span class="nav-icon">📑</span> Reports Hub
+      <span class="nav-icon"></span> Reports Hub
     </a>
 
     <div class="nav-section">Agents</div>
@@ -904,7 +904,7 @@
       <span class="badge">GET</span>
     </a>
     <a onclick="navigate('compliance')" id="nav-compliance">
-      <span class="nav-icon">🧾</span> Compliance Lab
+      <span class="nav-icon"></span> Compliance Lab
       <span class="badge">NEW</span>
     </a>
     <a onclick="navigate('health')" id="nav-health">
@@ -958,9 +958,9 @@
             </div>
           </div>
           <div class="flex-gap mt-2">
-            <button class="btn btn-primary" onclick="runFullDemoJourney()">🎬 Run Full Demo Journey</button>
-            <button class="btn btn-ghost" onclick="seedDemoForCurrentUser()">🌱 Seed Demo Data</button>
-            <button class="btn btn-ghost" onclick="downloadCABrief()">⬇️ Download CA Brief</button>
+            <button class="btn btn-primary" onclick="runFullDemoJourney()"> Run Full Demo Journey</button>
+            <button class="btn btn-ghost" onclick="seedDemoForCurrentUser()"> Seed Demo Data</button>
+            <button class="btn btn-ghost" onclick="downloadCABrief()"> Download CA Brief</button>
           </div>
         </div>
       </div>
@@ -1007,9 +1007,21 @@
             <label>Phone Number</label>
             <input type="text" id="u-phone" placeholder="+919876543210" />
           </div>
-                    <div class="mt-2">
+                              <div class="mt-2">
             <label>Business Name</label>
             <input type="text" id="u-biz" placeholder="e.g. Kumar Electronics" />
+          </div>
+          <div class="mt-2">
+            <label>Industry </label>
+            <input type="text" id="u-industry" placeholder="e.g. Retail" />
+          </div>
+          <div class="mt-2">
+            <label>Entity Type </label>
+            <input type="text" id="u-entity" placeholder="e.g. Sole Proprietorship" />
+          </div>
+          <div class="mt-2">
+            <label>Annual Turnover </label>
+            <input type="number" id="u-turnover" placeholder="e.g. 4500000" />
           </div>
           <div class="mt-2">
             <label>Industry</label>
@@ -1175,7 +1187,7 @@
           </div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📉</span> Trend Intelligence</div>
+          <div class="card-title"><span class="icon"></span> Trend Intelligence</div>
           <div id="trend-content"><div class="empty-state">Run Insights to see trend analytics</div></div>
         </div>
       </div>
@@ -1249,7 +1261,7 @@
             <input type="number" id="sim-revenue" min="0" max="100" value="5" />
           </div>
           <div style="display:flex; align-items:end;">
-            <button class="btn btn-primary" onclick="runWhatIfSimulation()">🧮 Run Simulation</button>
+            <button class="btn btn-primary" onclick="runWhatIfSimulation()"> Run Simulation</button>
           </div>
           <div class="text-muted" style="font-size:0.8rem; display:flex; align-items:end;">
             Estimate impact on net profit and margin instantly.
@@ -1274,11 +1286,11 @@
           <div class="metric-sub" id="sim-delta-margin">Margin delta 0%</div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">💡</span> Business Recommendation</div>
+          <div class="card-title"><span class="icon"></span> Business Recommendation</div>
           <div id="sim-reco" class="text-muted">Run a simulation to get recommendation.</div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📦</span> Raw API Response</div>
+          <div class="card-title"><span class="icon"></span> Raw API Response</div>
           <div class="response-panel" style="max-height:260px;">
             <div id="sim-raw" class="response-body"></div>
           </div>
@@ -1300,28 +1312,28 @@
             <input type="text" id="reports-uid" placeholder="backend_user_id" />
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-primary" onclick="autoScheduleFromParsedData()">📅 Auto Schedule Deadlines</button>
+            <button class="btn btn-primary" onclick="autoScheduleFromParsedData()"> Auto Schedule Deadlines</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="viewScheduledCalendar()">🗓️ View Calendar</button>
+            <button class="btn btn-ghost" onclick="viewScheduledCalendar()"> View Calendar</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="generateAllReports()">📑 Generate All Reports</button>
+            <button class="btn btn-ghost" onclick="generateAllReports()"> Generate All Reports</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="downloadReports()">⬇️ Download JSON</button>
+            <button class="btn btn-ghost" onclick="downloadReports()"> Download JSON</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-primary" onclick="downloadCAPDF()">📄 Download CA PDF</button>
+            <button class="btn btn-primary" onclick="downloadCAPDF()"> Download CA PDF</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="analyzeReports()">🧠 Analyze Reports</button>
+            <button class="btn btn-ghost" onclick="analyzeReports()"> Analyze Reports</button>
           </div>
         </div>
       </div>
 
       <div class="card mb-2" id="calendar-card" style="display:none;">
-        <div class="card-title"><span class="icon">🗓️</span> Scheduled Deadlines (Calendar View)</div>
+        <div class="card-title"><span class="icon"></span> Scheduled Deadlines (Calendar View)</div>
         <div id="calendar-meta" class="text-muted" style="font-size:0.82rem; margin-bottom:10px;">—</div>
         <div id="calendar-grid"></div>
       </div>
@@ -1346,19 +1358,19 @@
 
       <div class="grid-2" id="reports-analysis-grid" style="display:none;">
         <div class="card">
-          <div class="card-title"><span class="icon">🔎</span> Report Highlights</div>
+          <div class="card-title"><span class="icon"></span> Report Highlights</div>
           <div id="ra-highlights"><div class="empty-state">No analysis yet.</div></div>
         </div>
         <div class="card">
-          <div class="card-title"><span class="icon">✅</span> Recommendations</div>
+          <div class="card-title"><span class="icon"></span> Recommendations</div>
           <div id="ra-recommendations"><div class="empty-state">No analysis yet.</div></div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📝</span> Executive Summary (AI-assisted)</div>
+          <div class="card-title"><span class="icon"></span> Executive Summary (AI-assisted)</div>
           <div id="ra-exec" class="text-muted" style="line-height:1.6;">Run “Analyze Reports” to generate a concise executive summary.</div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📦</span> Reports API Response</div>
+          <div class="card-title"><span class="icon"></span> Reports API Response</div>
           <div class="response-panel" style="max-height:300px;">
             <div id="reports-raw" class="response-body"></div>
           </div>
@@ -1712,14 +1724,14 @@
             <input type="text" id="comp-uid" placeholder="backend_user_id" />
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-primary" onclick="runComplianceSmoke()">🚀 Run Full Compliance Smoke Test</button>
+            <button class="btn btn-primary" onclick="runComplianceSmoke()"> Run Full Compliance Smoke Test</button>
           </div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-title"><span class="icon">🔐</span> Phase 1: AA Integration</div>
+          <div class="card-title"><span class="icon"></span> Phase 1: AA Integration</div>
           <div class="grid-2">
             <div>
               <label>AA Handle</label>
@@ -1739,7 +1751,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title"><span class="icon">🏭</span> Phase 2: MSME + 43B(h)</div>
+          <div class="card-title"><span class="icon"></span> Phase 2: MSME + 43B(h)</div>
           <div class="grid-2">
             <div>
               <label>Vendor Name</label>
@@ -1767,7 +1779,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title"><span class="icon">🌍</span> Phase 3: W-8BEN + 15CA</div>
+          <div class="card-title"><span class="icon"></span> Phase 3: W-8BEN + 15CA</div>
           <div class="grid-2">
             <div>
               <label>Full Name</label>
@@ -1794,7 +1806,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title"><span class="icon">🏛️</span> Phase 4: OIDAR + GST Preflight</div>
+          <div class="card-title"><span class="icon"></span> Phase 4: OIDAR + GST Preflight</div>
           <div class="grid-2">
             <div>
               <label>Vendor/Party</label>
@@ -1821,7 +1833,7 @@
         </div>
 
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📅</span> Phase 5: MCA Scheduler + DRL</div>
+          <div class="card-title"><span class="icon"></span> Phase 5: MCA Scheduler + DRL</div>
           <div class="grid-3">
             <div>
               <label>Entity Type</label>
@@ -1838,14 +1850,14 @@
           </div>
           <div class="flex-gap mt-2">
             <button class="btn btn-ghost" onclick="scheduleComplianceCalendar()">Schedule MCA Calendar</button>
-            <button class="btn btn-primary" onclick="triggerDeadlineNotifications()">📲 Trigger Reminders</button>
+            <button class="btn btn-primary" onclick="triggerDeadlineNotifications()"> Trigger Reminders</button>
             <button class="btn btn-ghost" onclick="triggerDRL()">Trigger DRL</button>
           </div>
           <div id="calendar-result" class="text-muted mt-2" style="font-size:0.82rem;">No calendar/DRL activity yet.</div>
         </div>
 
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="icon">📦</span> Compliance API Response</div>
+          <div class="card-title"><span class="icon"></span> Compliance API Response</div>
           <div class="response-panel" style="max-height:320px;">
             <div id="compliance-raw" class="response-body"></div>
           </div>
@@ -2026,6 +2038,9 @@
       name: document.getElementById('u-name').value.trim(),
       phone: document.getElementById('u-phone').value.trim(),
       business_name: document.getElementById('u-biz').value.trim(),
+      industry: document.getElementById('u-industry') ? document.getElementById('u-industry').value.trim() : 'Unknown',
+      entity_type: document.getElementById('u-entity') ? document.getElementById('u-entity').value.trim() : 'Unknown',
+      annual_turnover: document.getElementById('u-turnover') ? (parseFloat(document.getElementById('u-turnover').value) || 0.0) : 0.0,
       industry: document.getElementById('u-industry') ? document.getElementById('u-industry').value.trim() : 'Unknown',
       entity_type: document.getElementById('u-entity') ? document.getElementById('u-entity').value.trim() : 'Unknown',
       annual_turnover: document.getElementById('u-turnover') ? (parseFloat(document.getElementById('u-turnover').value) || 0.0) : 0.0
@@ -2291,7 +2306,54 @@
   /* ───────────────────────────────────────────────
       INSIGHTS (COMBINED)
   ─────────────────────────────────────────────── */
-  async function fetchInsights() {
+  
+async function autoScheduleCalendar() {
+  if(!APP_USER) return alert('No active user. Check Settings.');
+  document.getElementById('calendar-grid').innerHTML = '<p class="text-slate-400">Scheduling AI Calendar (this may take a few seconds)...</p>';
+  try {
+    const res = await fetch(`${API_BASE}/calendar/auto/${APP_USER}`, { method: 'POST' });
+    if(res.ok) fetchCalendar();
+    else alert('Failed to auto-schedule.');
+  } catch(e) { console.error(e); }
+}
+
+async function fetchCalendar() {
+  if(!APP_USER) return;
+  const grid = document.getElementById('calendar-grid');
+  grid.innerHTML = '<p class="text-slate-400">Loading events...</p>';
+  try {
+    const res = await fetch(`${API_BASE}/calendar/events/${APP_USER}`);
+    const data = await res.json();
+    if(!data || !data.events || data.events.length === 0) {
+      grid.innerHTML = `<div class="p-6 bg-slate-800 rounded text-center col-span-3 text-slate-400">
+        No events found. Click "Auto Schedule" above!
+      </div>`;
+      return;
+    }
+    
+    let html = '';
+    data.events.forEach(ev => {
+      let colorClass = "border-green-500/50 bg-green-500/10";
+      if(ev.priority === "high") colorClass = "border-red-500/50 bg-red-500/10 text-red-100";
+      else if(ev.priority === "medium") colorClass = "border-yellow-500/50 bg-yellow-500/10 text-yellow-100";
+      
+      html += `
+        <div class="border rounded p-4 flex flex-col gap-2 relative overflow-hidden group hover:scale-[1.02] transition-transform ${colorClass}">
+          <div class="flex justify-between items-start">
+            <h3 class="font-bold text-lg">${ev.form_code}</h3>
+            <span class="text-xs px-2 py-1 rounded bg-black/30 whitespace-nowrap"> ${ev.start}</span>
+          </div>
+          <p class="text-sm opacity-90 mt-2">${ev.description}</p>
+        </div>
+      `;
+    });
+    grid.innerHTML = html;
+  } catch(e) {
+    grid.innerHTML = `<p class="text-red-400">Failed to load calendar.</p>`;
+  }
+}
+
+async function fetchInsights() {
     const uid = document.getElementById('ins-uid').value.trim() || USER_ID;
     if (!uid) { showToast('Enter a User ID', 'error'); return; }
     document.getElementById('insights-grid').style.display = 'none';
@@ -2606,7 +2668,7 @@
     const maxCatSpend = Math.max(...topCats.map(([, amt]) => Number(amt || 0)), 1);
 
     if (!monthEntries.length && !topCats.length) {
-      el.innerHTML = '<div class="empty-state"><div class="icon">📉</div>Not enough data for trend analytics yet</div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon"></div>Not enough data for trend analytics yet</div>';
       return;
     }
 
@@ -2636,11 +2698,11 @@
     el.innerHTML = `
       <div class="grid-2">
         <div>
-          <div class="card-title"><span class="icon">📆</span> Month-over-Month Expense Trend</div>
+          <div class="card-title"><span class="icon"></span> Month-over-Month Expense Trend</div>
           ${monthBars || '<div class="text-muted">No monthly debit data</div>'}
         </div>
         <div>
-          <div class="card-title"><span class="icon">🕳️</span> Top Expense Leak Categories</div>
+          <div class="card-title"><span class="icon"></span> Top Expense Leak Categories</div>
           ${catBars || '<div class="text-muted">No category data</div>'}
         </div>
       </div>`;

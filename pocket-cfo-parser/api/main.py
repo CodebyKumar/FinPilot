@@ -188,18 +188,6 @@ def health_check():
     return {"status": "ok", "message": "Pocket CFO Agent is running"}
 
 
-@app.post("/ingest/sms")
-def ingest_sms_route(payload: SMSPayload):
-    """
-    Ingests fundamentally unstructured SMS structurally aggregating transaction flows 
-    natively securely into databases implicitly resolving AI schemas.
-    """
-    txn = ingest_sms(payload.text, payload.user_id)
-    if txn:
-        return txn.to_dict()
-    else:
-        return {"status": "skipped", "reason": "non-transactional message"}
-
 
 @app.post("/ingest/pdf")
 async def ingest_pdf_route(user_id: str = Form(...), file: UploadFile = File(...)):
