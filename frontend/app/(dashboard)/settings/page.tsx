@@ -97,8 +97,8 @@ export default function SettingsPage() {
                 borderRadius: '0.5rem',
                 color: 'var(--text)',
               }}>
-                <option>Dark (Default)</option>
-                <option>Light</option>
+                <option>Light (Default)</option>
+                <option>Dark</option>
               </select>
             </div>
             <Button variant="primary">Save Changes</Button>

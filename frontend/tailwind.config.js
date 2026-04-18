@@ -7,11 +7,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Dark mode defaults
-        'dark-bg': '#0D0F12',
-        'dark-bg-secondary': '#111318',
-        'dark-bg-tertiary': '#16191F',
-        'dark-border': '#1E2230',
+        // Light mode defaults
+        'light-bg': '#F8FAFC',
+        'light-bg-secondary': '#FFFFFF',
+        'light-bg-tertiary': '#F1F5F9',
+        'light-border': '#DCE3ED',
         // Accent colors
         'accent-amber': '#F59E0B',
         'accent-emerald': '#10B981',

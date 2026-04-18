@@ -11,7 +11,7 @@ interface Message {
 const styles = `
 .voice-assistant-container {
   --ink: var(--text);
-  --muted: #9ca3af;
+  --muted: var(--muted);
   --line: var(--border);
   --panel: var(--bg2);
   --teal: var(--indigo);
@@ -19,7 +19,7 @@ const styles = `
   --rose: var(--rose);
   --green: var(--emerald);
   --amber: var(--amber);
-  --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 
   display: grid;
   gap: 20px;

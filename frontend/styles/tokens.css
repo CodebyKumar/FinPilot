@@ -2,21 +2,22 @@
 
 /* Root theme variables */
 :root {
-  --bg: #0D0F12;
-  --bg2: #111318;
-  --bg3: #16191F;
-  --border: #1E2230;
+  --bg: #F8FAFC;
+  --bg2: #FFFFFF;
+  --bg3: #F1F5F9;
+  --border: #DCE3ED;
   --amber: #F59E0B;
   --amber-dim: #7A4F00;
   --emerald: #10B981;
   --rose: #F43F5E;
   --indigo: #6366F1;
   --sky: #38BDF8;
-  --text: #E4E7EC;
-  --muted: #6B7280;
-  --card-glow-amber: rgba(245, 158, 11, 0.08);
-  --card-glow-emerald: rgba(16, 185, 129, 0.08);
-  --card-glow-rose: rgba(244, 63, 94, 0.08);
+  --text: #0F172A;
+  --muted: #64748B;
+  --card-glow-amber: rgba(245, 158, 11, 0.12);
+  --card-glow-emerald: rgba(16, 185, 129, 0.1);
+  --card-glow-rose: rgba(244, 63, 94, 0.1);
+  --card-glow-indigo: rgba(99, 102, 241, 0.1);
 }
 
 /* Global styles */
