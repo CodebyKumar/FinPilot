@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import re
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from langgraph.graph.message import add_messages
 from finpilot import config
 from finpilot.api.deps import fetch_user_transactions
 from finpilot.db.mongo import (
+    _get_db,
     get_agent_memories_collection,
     get_assistant_chat_history_collection,
     get_user,
@@ -20,6 +22,7 @@ from finpilot.db.mongo import (
 from finpilot.tools.compliance_tools import query_deadlines_data
 from finpilot.tools.finance_tools import query_bookkeeping_data
 from finpilot.tools.report_tools import plan_report_assist_data
+from finpilot.utils.profile_security import decrypt_sensitive_value, mask_sensitive_value
 
 
 class State(TypedDict, total=False):
@@ -72,6 +75,83 @@ REPORT_KEYWORDS = {
     "fill form",
     "upload form",
 }
+
+SENSITIVE_PROFILE_FIELDS = {"pan", "aadhaar"}
+
+
+def _safe_number(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _mask_sensitive_profile(profile_doc: dict[str, Any]) -> dict[str, Any]:
+    masked = deepcopy(profile_doc)
+
+    personal = masked.get("personal_info") if isinstance(masked.get("personal_info"), dict) else {}
+    for key in SENSITIVE_PROFILE_FIELDS:
+        if key in personal:
+            decrypted = decrypt_sensitive_value(personal.get(key))
+            personal[key] = mask_sensitive_value(decrypted)
+
+    bank_accounts = masked.get("bank_accounts")
+    if isinstance(bank_accounts, list):
+        for account in bank_accounts:
+            if not isinstance(account, dict):
+                continue
+            account_number = account.get("account_number")
+            if account_number is None:
+                continue
+            account["account_number"] = mask_sensitive_value(str(account_number), prefix=2, suffix=2)
+
+    return masked
+
+
+def _load_user_profile_bundle(user_id: str) -> dict[str, Any]:
+    user_doc = get_user(user_id) or {}
+
+    profile_doc = _get_db()["profiles"].find_one(
+        {"user_id": user_id, "deleted": {"$ne": True}},
+        {"_id": 0},
+    ) or {}
+    if not isinstance(profile_doc, dict):
+        profile_doc = {}
+
+    masked_profile = _mask_sensitive_profile(profile_doc)
+    return {
+        "user": user_doc,
+        "profile": masked_profile,
+    }
+
+
+def _build_profile_context_for_prompt(profile_bundle: dict[str, Any]) -> dict[str, Any]:
+    user_doc = profile_bundle.get("user") if isinstance(profile_bundle.get("user"), dict) else {}
+    profile_doc = profile_bundle.get("profile") if isinstance(profile_bundle.get("profile"), dict) else {}
+
+    personal = profile_doc.get("personal_info") if isinstance(profile_doc.get("personal_info"), dict) else {}
+    business = profile_doc.get("business_info") if isinstance(profile_doc.get("business_info"), dict) else {}
+    tax_preferences = profile_doc.get("tax_preferences") if isinstance(profile_doc.get("tax_preferences"), dict) else {}
+    income_sources = profile_doc.get("income_sources") if isinstance(profile_doc.get("income_sources"), list) else []
+    bank_accounts = profile_doc.get("bank_accounts") if isinstance(profile_doc.get("bank_accounts"), list) else []
+
+    return {
+        "name": personal.get("full_name") or user_doc.get("name"),
+        "phone": personal.get("phone") or user_doc.get("phone"),
+        "email": personal.get("email"),
+        "business_name": business.get("business_name") or user_doc.get("business_name"),
+        "industry": business.get("industry") or user_doc.get("industry"),
+        "entity_type": business.get("entity_type") or user_doc.get("entity_type"),
+        "annual_turnover": _safe_number(
+            user_doc.get("annual_turnover")
+            if user_doc.get("annual_turnover") not in (None, "")
+            else business.get("annual_turnover"),
+            0.0,
+        ),
+        "income_sources": income_sources[:10],
+        "tax_preferences": tax_preferences,
+        "bank_accounts": bank_accounts[:3],
+    }
 
 
 def _now_iso() -> str:
@@ -382,13 +462,17 @@ def _maybe_direct_bookkeeping_response(user_query: str, capability_result: dict[
 def load_context(state: State) -> dict[str, Any]:
     user_id = state.get("user_id", "")
     return {
-        "user_profile": get_user(user_id) or {},
         "transactions": fetch_user_transactions(user_id),
         "memory_highlights": _load_memory_highlights(
             user_id,
             max_items=getattr(config, "AGENT_MEMORY_MAX_HIGHLIGHTS", 8),
         ),
     }
+
+
+def load_profile_context(state: State) -> dict[str, Any]:
+    user_id = state.get("user_id", "")
+    return {"user_profile": _load_user_profile_bundle(user_id)}
 
 
 def route_capability(state: State) -> dict[str, Any]:
@@ -488,7 +572,9 @@ llm = ChatOpenAI(model=ORCHESTRATOR_MODEL, api_key=config.OPENAI_API_KEY, temper
 def synthesize_response(state: State) -> dict[str, Any]:
     messages = state.get("messages", [])
     user_query = _latest_user_message(messages)
-    profile = state.get("user_profile", {})
+    profile_bundle = state.get("user_profile", {}) if isinstance(state.get("user_profile"), dict) else {}
+    user_doc = profile_bundle.get("user") if isinstance(profile_bundle.get("user"), dict) else {}
+    profile_doc = profile_bundle.get("profile") if isinstance(profile_bundle.get("profile"), dict) else {}
     capability = state.get("capability", "general")
     capability_result = state.get("capability_result", {})
     memory_highlights = state.get("memory_highlights", [])
@@ -510,11 +596,18 @@ def synthesize_response(state: State) -> dict[str, Any]:
         "capability_result": capability_result,
         "memory_highlights": memory_lines,
         "query_type": query_type,
+        "profile_context": _build_profile_context_for_prompt(profile_bundle),
     }
 
-    industry = profile.get("industry", "Unknown")
-    entity_type = profile.get("entity_type", "Unknown")
-    turnover = profile.get("annual_turnover", 0.0)
+    business = profile_doc.get("business_info") if isinstance(profile_doc.get("business_info"), dict) else {}
+    industry = user_doc.get("industry") or business.get("industry") or "Unknown"
+    entity_type = user_doc.get("entity_type") or business.get("entity_type") or "Unknown"
+    turnover = _safe_number(
+        user_doc.get("annual_turnover")
+        if user_doc.get("annual_turnover") not in (None, "")
+        else business.get("annual_turnover"),
+        0.0,
+    )
 
     system_prompt = (
         "You are FinPilot Orchestrator V1, a multi-agent financial assistant. "
@@ -560,6 +653,7 @@ def _route_edge(state: State) -> str:
 
 workflow = StateGraph(State)
 workflow.add_node("load_context", load_context)
+workflow.add_node("load_profile_context", load_profile_context)
 workflow.add_node("route_capability", route_capability)
 workflow.add_node("bookkeeping_capability", run_bookkeeping_capability)
 workflow.add_node("deadline_capability", run_deadline_capability)
@@ -568,7 +662,8 @@ workflow.add_node("general_capability", run_general_capability)
 workflow.add_node("synthesize_response", synthesize_response)
 
 workflow.add_edge(START, "load_context")
-workflow.add_edge("load_context", "route_capability")
+workflow.add_edge("load_context", "load_profile_context")
+workflow.add_edge("load_profile_context", "route_capability")
 workflow.add_conditional_edges(
     "route_capability",
     _route_edge,
@@ -595,7 +690,8 @@ def get_orchestrator_graph_mermaid() -> str:
         return (
             "flowchart TD\n"
             "    START --> load_context\n"
-            "    load_context --> route_capability\n"
+            "    load_context --> load_profile_context\n"
+            "    load_profile_context --> route_capability\n"
             "    route_capability --> bookkeeping_capability\n"
             "    route_capability --> deadline_capability\n"
             "    route_capability --> report_capability\n"
@@ -613,6 +709,7 @@ def get_orchestrator_graph_metadata() -> dict[str, Any]:
         "version": "v1",
         "nodes": [
             "load_context",
+            "load_profile_context",
             "route_capability",
             "bookkeeping_capability",
             "deadline_capability",

@@ -19,7 +19,7 @@ from finpilot.models.transaction import Transaction
 from finpilot.agents.bookkeeping_agent import get_bookkeeping_summary
 from finpilot.agents.gst_agent import classify_transaction
 from finpilot.agents.orchestrator_agent import execute_goal
-from finpilot.services.ingestion import ingest_pdf
+from finpilot.services.ingestion import ingest_pdf_with_stats
 from finpilot.services.parsers.invoice_parser import parse_invoice_pdf
 from finpilot.services.parsers.report_parser import (
     extract_fields_from_template_text,
@@ -262,6 +262,19 @@ def _deadlines_collection():
 
 def _invoices_collection():
     return _get_db()["invoices"]
+
+
+def _statement_uploads_collection():
+    return _get_db()["statement_uploads"]
+
+
+def _safe_filename_from_path(file_path: str | None) -> str:
+    if not file_path:
+        return ""
+    try:
+        return os.path.basename(file_path)
+    except Exception:
+        return str(file_path)
 
 
 def _safe_text(value: Any) -> str:
@@ -1087,7 +1100,41 @@ def _task_bookkeeping_add_entry(user_id: str, payload: dict[str, Any]) -> dict[s
 
 def _task_bookkeeping_get_ledger(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     txns = fetch_user_transactions(user_id)
-    return get_bookkeeping_summary(txns)
+    summary = get_bookkeeping_summary(txns)
+
+    statement_uploads = list(
+        _statement_uploads_collection().find(
+            {"user_id": user_id},
+            {
+                "_id": 0,
+                "upload_id": 1,
+                "file_name": 1,
+                "count": 1,
+                "parsed": 1,
+                "message": 1,
+                "created_at": 1,
+            },
+        ).sort("created_at", -1).limit(20)
+    )
+
+    invoice_uploads = list(
+        _invoices_collection().find(
+            {"user_id": user_id},
+            {
+                "_id": 0,
+                "invoice_id": 1,
+                "file_name": 1,
+                "party": 1,
+                "amount": 1,
+                "date": 1,
+                "created_at": 1,
+            },
+        ).sort("created_at", -1).limit(20)
+    )
+
+    summary["statement_uploads"] = statement_uploads
+    summary["invoice_uploads"] = invoice_uploads
+    return summary
 
 
 def _task_bookkeeping_update_entry(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1105,17 +1152,63 @@ def _task_bookkeeping_upload_statement(user_id: str, payload: dict[str, Any]) ->
     file_path = payload.get("file_path")
     if not file_path:
         return {"uploaded": False, "error": "file_path is required"}
-    transactions = ingest_pdf(file_path, user_id)
-    count = len(transactions)
-    message = "Statement parsed successfully" if count > 0 else (
-        "No transactions could be parsed from this statement. "
-        "The file may be image-only/scanned, password-protected, or in an unsupported layout."
+
+    file_name = _safe_text(payload.get("file_name") or _safe_filename_from_path(file_path) or "statement")
+    ingestion_stats = ingest_pdf_with_stats(file_path, user_id)
+    transactions = ingestion_stats.get("transactions") if isinstance(ingestion_stats.get("transactions"), list) else []
+    parsed_count = int(ingestion_stats.get("parsed_count", 0) or 0)
+    inserted_count = int(ingestion_stats.get("inserted_count", 0) or 0)
+    duplicate_count = int(ingestion_stats.get("duplicate_count", 0) or 0)
+    failed_count = int(ingestion_stats.get("failed_count", 0) or 0)
+
+    # Keep `count` as newly inserted transactions so UI/report generation uses net-new ledger data.
+    count = inserted_count
+    parsed = parsed_count > 0
+    if parsed_count <= 0:
+        message = (
+            "No transactions could be parsed from this statement. "
+            "The file may be image-only/scanned, password-protected, or in an unsupported layout."
+        )
+    elif inserted_count <= 0 and duplicate_count > 0:
+        message = "All transactions in this statement are already existing in ledger."
+    elif duplicate_count > 0:
+        message = f"Statement parsed: {inserted_count} new transaction(s) added, {duplicate_count} already existing skipped."
+    elif failed_count > 0:
+        message = f"Statement parsed: {inserted_count} transaction(s) added, {failed_count} failed to save."
+    else:
+        message = "Statement parsed successfully"
+
+    statement_doc = {
+        "upload_id": str(uuid4()),
+        "user_id": user_id,
+        "file_name": file_name,
+        "count": count,
+        "parsed_count": parsed_count,
+        "inserted_count": inserted_count,
+        "duplicate_count": duplicate_count,
+        "failed_count": failed_count,
+        "parsed": parsed,
+        "message": message,
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+    }
+    _statement_uploads_collection().update_one(
+        {"upload_id": statement_doc["upload_id"]},
+        {"$set": statement_doc},
+        upsert=True,
     )
+
     return {
         "uploaded": True,
-        "parsed": count > 0,
+        "parsed": parsed,
         "count": count,
+        "parsed_count": parsed_count,
+        "inserted_count": inserted_count,
+        "duplicate_count": duplicate_count,
+        "failed_count": failed_count,
+        "already_existing": duplicate_count > 0,
         "message": message,
+        "statement_upload": statement_doc,
         "transactions": [t.to_dict() for t in transactions],
     }
 
@@ -1131,11 +1224,13 @@ def _task_bookkeeping_upload_invoice(user_id: str, payload: dict[str, Any]) -> d
     final_party = payload.get("party") or extracted.get("vendor_name") or "Unknown"
     final_date_raw = payload.get("date") or extracted.get("invoice_date") or _now_iso()
     final_date = _parse_datetime(final_date_raw)
+    file_name = _safe_text(payload.get("file_name") or _safe_filename_from_path(file_path) or "invoice")
 
     doc = {
         "invoice_id": payload.get("invoice_id") or str(uuid4()),
         "user_id": user_id,
         "file_path": file_path,
+        "file_name": file_name,
         "amount": final_amount,
         "date": final_date.isoformat(),
         "party": final_party,
@@ -2205,8 +2300,15 @@ def bookkeeping_update_entry(user_id: str, entry_id: str, updates: dict[str, Any
     return _task_bookkeeping_update_entry(user_id, {"entry_id": entry_id, "updates": updates})
 
 
-def bookkeeping_upload_statement_from_path(user_id: str, file_path: str) -> dict[str, Any]:
-    return _task_bookkeeping_upload_statement(user_id, {"file_path": file_path})
+def bookkeeping_upload_statement_from_path(
+    user_id: str,
+    file_path: str,
+    file_name: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"file_path": file_path}
+    if file_name:
+        payload["file_name"] = file_name
+    return _task_bookkeeping_upload_statement(user_id, payload)
 
 
 def bookkeeping_upload_invoice(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:

@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ClipboardList, DollarSign, Download, Lightbulb, Receipt, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ClipboardList, DollarSign, Lightbulb, Receipt, TrendingUp } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 
 interface DashboardKpis {
@@ -153,14 +152,6 @@ export default function DashboardPage() {
     <PageShell
       title="Financial Dashboard"
       subtitle="Overview of your business financials and pending actions"
-      headerAction={
-        <Button variant="primary">
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
-            <Download size={16} />
-            <span>Upload Statement</span>
-          </span>
-        </Button>
-      }
     >
       {error && (
         <div

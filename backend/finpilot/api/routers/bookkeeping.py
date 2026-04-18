@@ -171,7 +171,7 @@ async def upload_statement_route(user_id: str = Form(...), file: UploadFile = Fi
         tmp_path = tmp.name
 
     try:
-        data = bookkeeping_upload_statement_from_path(user_id, tmp_path)
+        data = bookkeeping_upload_statement_from_path(user_id, tmp_path, file.filename)
         return {"success": True, "data": data}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -219,6 +219,7 @@ async def upload_invoice_file_route(
 
     payload = {
         "file_path": str(target_path),
+        "file_name": file.filename,
         "party": party,
         "amount": amount,
         "date": date,

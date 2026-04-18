@@ -30,16 +30,41 @@ interface BalanceSummary {
   action_items?: Array<{ message: string }>;
 }
 
+interface StatementUploadHistoryItem {
+  upload_id?: string;
+  file_name?: string;
+  count?: number;
+  parsed?: boolean;
+  message?: string;
+  created_at?: string;
+}
+
+interface InvoiceUploadHistoryItem {
+  invoice_id?: string;
+  file_name?: string;
+  party?: string;
+  amount?: number;
+  date?: string;
+  created_at?: string;
+}
+
 interface BookkeepingSummary {
   entries: BookkeepingEntry[];
   balance_summary: BalanceSummary;
   recommendations: string[];
+  statement_uploads?: StatementUploadHistoryItem[];
+  invoice_uploads?: InvoiceUploadHistoryItem[];
 }
 
 interface StatementUploadResult {
   uploaded: boolean;
   parsed?: boolean;
   count: number;
+  parsed_count?: number;
+  inserted_count?: number;
+  duplicate_count?: number;
+  failed_count?: number;
+  already_existing?: boolean;
   message?: string;
   transactions: Array<{ id?: string; party?: string; amount?: number; type?: string; date?: string; category?: string }>;
 }
@@ -84,8 +109,6 @@ export default function BookkeepingPage() {
 
   const [isStatementUploading, setIsStatementUploading] = useState(false);
   const [isInvoiceUploading, setIsInvoiceUploading] = useState(false);
-  const [statementUploads, setStatementUploads] = useState<string[]>([]);
-  const [invoiceUploads, setInvoiceUploads] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | null>(null);
   const [summary, setSummary] = useState<BookkeepingSummary | null>(null);
@@ -210,14 +233,21 @@ export default function BookkeepingPage() {
       if (parsed) {
         setLatestStatementResult(parsed);
       }
-      setStatementUploads((prev) => [file.name, ...prev]);
       await loadLedgerSummary();
-      if ((parsed?.count ?? 0) > 0) {
-        await generateFinancialReport(true, parsed.count);
+      const insertedCount = parsed?.inserted_count ?? parsed?.count ?? 0;
+      const duplicateCount = parsed?.duplicate_count ?? 0;
+
+      if (insertedCount > 0) {
+        await generateFinancialReport(true, insertedCount);
       }
-      const count = parsed?.count ?? 0;
-      if (count > 0) {
-        setStatus(`Statement uploaded: ${file.name} • ${count} transactions parsed`, 'success');
+
+      if (duplicateCount > 0 && insertedCount === 0) {
+        const duplicateMessage = parsed?.message || `All transactions from ${file.name} are already existing in ledger.`;
+        setStatus(duplicateMessage, 'error');
+        window.alert(duplicateMessage);
+      } else if (insertedCount > 0) {
+        const suffix = duplicateCount > 0 ? ` • ${duplicateCount} already existing skipped` : '';
+        setStatus(`Statement uploaded: ${file.name} • ${insertedCount} new transactions added${suffix}`, 'success');
       } else {
         setStatus(parsed?.message || 'Statement uploaded, but no transactions were parsed.', 'error');
       }
@@ -241,7 +271,6 @@ export default function BookkeepingPage() {
       if (parsed) {
         setLatestInvoiceResult(parsed);
       }
-      setInvoiceUploads((prev) => [file.name, ...prev]);
       await loadLedgerSummary();
       const fyEnd = parsed?.deadline?.meta?.financial_year_end;
       const queued = Number(parsed?.reminders_queued ?? 0);
@@ -255,6 +284,9 @@ export default function BookkeepingPage() {
       event.target.value = '';
     }
   };
+
+  const statementUploads = summary?.statement_uploads ?? [];
+  const invoiceUploads = summary?.invoice_uploads ?? [];
 
   return (
     <PageShell
@@ -411,19 +443,32 @@ export default function BookkeepingPage() {
               <p>No statements uploaded yet</p>
             ) : (
               <div style={{ textAlign: 'left' }}>
-                {statementUploads.map((name) => (
-                  <p key={name} style={{ margin: '0.25rem 0', color: 'var(--text)' }}>• {name}</p>
-                ))}
+                {statementUploads.map((item, index) => {
+                  const createdAtText = item.created_at
+                    ? new Date(item.created_at).toLocaleDateString('en-IN')
+                    : null;
+                  const countText = typeof item.count === 'number' ? ` (${item.count} txn)` : '';
+                  return (
+                    <p
+                      key={item.upload_id || `${item.file_name || 'statement'}-${item.created_at || index}`}
+                      style={{ margin: '0.25rem 0', color: 'var(--text)' }}
+                    >
+                      • {item.file_name || `Statement ${index + 1}`}{countText}{createdAtText ? ` • ${createdAtText}` : ''}
+                    </p>
+                  );
+                })}
               </div>
             )}
-            <Button
-              variant="primary"
-              style={{ marginTop: '1rem' }}
-              onClick={triggerStatementPicker}
-              disabled={isStatementUploading}
-            >
-              {isStatementUploading ? 'Uploading...' : 'Upload First Statement'}
-            </Button>
+            {statementUploads.length === 0 && (
+              <Button
+                variant="primary"
+                style={{ marginTop: '1rem' }}
+                onClick={triggerStatementPicker}
+                disabled={isStatementUploading}
+              >
+                {isStatementUploading ? 'Uploading...' : 'Upload First Statement'}
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -433,19 +478,33 @@ export default function BookkeepingPage() {
               <p>No invoices uploaded yet</p>
             ) : (
               <div style={{ textAlign: 'left' }}>
-                {invoiceUploads.map((name) => (
-                  <p key={name} style={{ margin: '0.25rem 0', color: 'var(--text)' }}>• {name}</p>
-                ))}
+                {invoiceUploads.map((item, index) => {
+                  const createdAtText = item.created_at
+                    ? new Date(item.created_at).toLocaleDateString('en-IN')
+                    : null;
+                  const amountText = typeof item.amount === 'number' ? ` • ₹${item.amount.toFixed(2)}` : '';
+                  const partyText = item.party ? ` • ${item.party}` : '';
+                  return (
+                    <p
+                      key={item.invoice_id || `${item.file_name || 'invoice'}-${item.created_at || index}`}
+                      style={{ margin: '0.25rem 0', color: 'var(--text)' }}
+                    >
+                      • {item.file_name || `Invoice ${index + 1}`}{partyText}{amountText}{createdAtText ? ` • ${createdAtText}` : ''}
+                    </p>
+                  );
+                })}
               </div>
             )}
-            <Button
-              variant="primary"
-              style={{ marginTop: '1rem' }}
-              onClick={triggerInvoicePicker}
-              disabled={isInvoiceUploading}
-            >
-              {isInvoiceUploading ? 'Uploading...' : 'Upload First Invoice'}
-            </Button>
+            {invoiceUploads.length === 0 && (
+              <Button
+                variant="primary"
+                style={{ marginTop: '1rem' }}
+                onClick={triggerInvoicePicker}
+                disabled={isInvoiceUploading}
+              >
+                {isInvoiceUploading ? 'Uploading...' : 'Upload First Invoice'}
+              </Button>
+            )}
           </div>
         </Card>
 

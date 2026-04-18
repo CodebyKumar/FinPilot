@@ -66,6 +66,8 @@ def init_db() -> None:
         db["jobs"].create_index([("status", ASCENDING), ("created_at", DESCENDING)])
         db["notifications"].create_index([("notification_key", ASCENDING)], unique=True)
         db["invoices"].create_index([("invoice_id", ASCENDING)], unique=True)
+        db["statement_uploads"].create_index([("upload_id", ASCENDING)], unique=True)
+        db["statement_uploads"].create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
         db["assistant_chat_history"].create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
         db["agent_memories"].create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
         db["agent_memories"].create_index([("user_id", ASCENDING), ("memory_key", ASCENDING)], sparse=True)
