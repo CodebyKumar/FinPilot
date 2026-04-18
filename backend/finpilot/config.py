@@ -25,5 +25,8 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+PROFILE_ENCRYPTION_SECRET: str = os.getenv("PROFILE_ENCRYPTION_SECRET", "finpilot-dev-secret")
+DEADLINE_SCAN_INTERVAL_SECONDS: int = int(os.getenv("DEADLINE_SCAN_INTERVAL_SECONDS", "3600"))
+
 # ── Seeder script ──────────────────────────────────────────────────────────────
 API_BASE: str = os.getenv("API_BASE", "http://localhost:8000")
