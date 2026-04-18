@@ -66,6 +66,11 @@ class ReportRequest(BaseModel):
     fields: list[dict[str, Any] | str] = Field(default_factory=list)
 
 
+class ReportEmailRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    report_id: str = Field(min_length=1)
+
+
 class OverallReportGenerateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
     report_id: str | None = None

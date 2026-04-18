@@ -5,6 +5,7 @@ dynamically into distinct operational HTTP intelligence endpoints securely.
 import os
 import sys
 import json
+import logging
 from datetime import datetime, timedelta
 # Automatically bind the project root to the Python path avoiding module import errors
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,6 +21,8 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Imports from pocket_cfo_parser core logic
 from pocket_cfo_parser.ingestion import ingest_sms, ingest_pdf
@@ -267,6 +270,20 @@ def _fetch_user_transactions(user_id: str) -> list[Transaction]:
         txns.append(txn)
         
     return txns
+
+
+def _normalize_iso_date(value: object) -> str | None:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromisoformat(text).date().isoformat()
+        except ValueError:
+            return None
+    return None
 
 
 @app.get("/insights/{user_id}")
@@ -1106,7 +1123,30 @@ def auto_schedule_calendar_from_transactions_route(user_id: str):
     notifications = trigger_deadline_notifications(user_id, send_all_pending=True)
     immediate_trigger_mode = "pending_only"
     if notifications.get("notifications_sent", 0) == 0:
-        reminder_dates = sorted({r.get("reminder_date") for r in result.get("reminders", []) if r.get("reminder_date")})
+        reminders = result.get("reminders", [])
+        reminder_dates_set: set[str] = set()
+        ignored_reminder_dates = 0
+        if isinstance(reminders, list):
+            for reminder in reminders:
+                if not isinstance(reminder, dict):
+                    ignored_reminder_dates += 1
+                    continue
+                normalized_date = _normalize_iso_date(reminder.get("reminder_date"))
+                if normalized_date:
+                    reminder_dates_set.add(normalized_date)
+                elif reminder.get("reminder_date") is not None:
+                    ignored_reminder_dates += 1
+        elif reminders is not None:
+            ignored_reminder_dates += 1
+
+        if ignored_reminder_dates > 0:
+            logger.warning(
+                "Ignored %s malformed reminder_date value(s) for user %s during auto schedule fallback trigger.",
+                ignored_reminder_dates,
+                user_id,
+            )
+
+        reminder_dates = sorted(reminder_dates_set)
         if reminder_dates:
             notifications = trigger_deadline_notifications(user_id, run_date=reminder_dates[0])
             immediate_trigger_mode = "forced_earliest"

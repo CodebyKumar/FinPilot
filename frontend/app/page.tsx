@@ -14,7 +14,7 @@ export default function Home() {
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
             <Link 
-              href="/login"
+              href="/dashboard"
               style={{
                 padding: '0.75rem 1.5rem',
                 background: 'var(--indigo)',
@@ -24,10 +24,10 @@ export default function Home() {
                 fontWeight: 600,
               }}
             >
-              Login
+              Go to Dashboard
             </Link>
             <Link 
-              href="/register"
+              href="/reports"
               style={{
                 padding: '0.75rem 1.5rem',
                 background: 'var(--bg3)',
@@ -38,7 +38,7 @@ export default function Home() {
                 fontWeight: 600,
               }}
             >
-              Get Started
+              Explore Reports
             </Link>
           </div>
         </section>
@@ -78,7 +78,7 @@ export default function Home() {
           <h2 style={{ fontSize: '2rem', fontFamily: 'Syne', marginBottom: '1rem' }}>Ready to simplify your finances?</h2>
           <p style={{ color: 'var(--muted)', marginBottom: '2rem' }}>Join SMBs who trust FinPilot for financial management.</p>
           <Link 
-            href="/register"
+            href="/dashboard"
             style={{
               display: 'inline-block',
               padding: '0.875rem 2rem',
@@ -89,7 +89,7 @@ export default function Home() {
               fontWeight: 600,
             }}
           >
-            Start Free Trial
+            Open Dashboard
           </Link>
         </section>
       </div>

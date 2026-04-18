@@ -45,6 +45,20 @@ from pocket_cfo_parser.db.mongo import (
 logger = logging.getLogger(__name__)
 
 
+def _normalize_iso_date(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromisoformat(text).date().isoformat()
+        except ValueError:
+            return None
+    return None
+
+
 def _compliance_mode() -> str:
     """Select compliance integration mode from environment (mock/live)."""
     return os.getenv("COMPLIANCE_MODE", "mock").strip().lower()
@@ -608,8 +622,29 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
         except Exception:
             today = datetime.now().date().isoformat()
 
-    reminders = doc.get("reminders", [])
-    sent_keys = set(doc.get("sent_notification_keys", []))
+    reminders_raw = doc.get("reminders", [])
+    reminders = reminders_raw if isinstance(reminders_raw, list) else []
+    if reminders_raw is not None and not isinstance(reminders_raw, list):
+        logger.warning("Ignoring malformed reminders payload for user %s: expected list", user_id)
+
+    sent_keys_raw = doc.get("sent_notification_keys", [])
+    sent_keys: set[str] = set()
+    ignored_sent_keys = 0
+    if isinstance(sent_keys_raw, list):
+        for item in sent_keys_raw:
+            if isinstance(item, str):
+                if item:
+                    sent_keys.add(item)
+            elif isinstance(item, (int, float, bool)):
+                sent_keys.add(str(item))
+            elif item is not None:
+                ignored_sent_keys += 1
+    elif sent_keys_raw not in (None, ""):
+        ignored_sent_keys += 1
+
+    if ignored_sent_keys > 0:
+        logger.warning("Ignored %s malformed sent_notification_keys item(s) for user %s", ignored_sent_keys, user_id)
+
     recipient_email = _resolve_user_email(user_id)
     
     logger.info(f"Notification trigger: user={user_id}, today={today}, send_all_pending={send_all_pending}, email={recipient_email}")
@@ -618,9 +653,23 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
     triggered = []
     email_sent = 0
     email_failed = 0
+    skipped_invalid_reminders = 0
+    reminders_due_today = 0
 
     for r in reminders:
-        reminder_date = r.get("reminder_date")
+        if not isinstance(r, dict):
+            skipped_invalid_reminders += 1
+            continue
+
+        reminder_date = _normalize_iso_date(r.get("reminder_date"))
+        if reminder_date is None:
+            if r.get("reminder_date") is not None:
+                skipped_invalid_reminders += 1
+            continue
+
+        if reminder_date == today:
+            reminders_due_today += 1
+
         form_code = r.get("form_code")
         
         if send_all_pending:
@@ -634,7 +683,7 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
         
         logger.info(f"Processing reminder: {form_code} on {reminder_date}")
 
-        reminder_key = f"{r.get('form_code')}|{r.get('due_date')}|{r.get('offset_days')}|{r.get('reminder_date')}"
+        reminder_key = f"{r.get('form_code')}|{r.get('due_date')}|{r.get('offset_days')}|{reminder_date}"
         if reminder_key in sent_keys:
             continue
 
@@ -656,7 +705,7 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
                     f"This is your Pocket CFO compliance reminder.\n"
                     f"Form: {r.get('form_code')}\n"
                     f"Due Date: {r.get('due_date')}\n"
-                    f"Reminder Date: {r.get('reminder_date')}\n"
+                    f"Reminder Date: {reminder_date}\n"
                     f"Penalty Insight: {r.get('penalty_insight')}\n\n"
                     f"Regards,\nPocket CFO"
                 ),
@@ -679,6 +728,9 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
         {"$set": {"sent_notification_keys": sorted(sent_keys), "last_notified_at": datetime.now().isoformat()}},
         upsert=True,
     )
+
+    if skipped_invalid_reminders > 0:
+        logger.warning("Skipped %s malformed reminder item(s) for user %s", skipped_invalid_reminders, user_id)
     
     logger.info(f"Notification summary: triggered={len(triggered)}, email_sent={email_sent}, email_failed={email_failed}")
             
@@ -689,7 +741,7 @@ def trigger_deadline_notifications(user_id: str, run_date: str | None = None, se
         "email_sent": email_sent,
         "email_failed": email_failed,
         "details": triggered,
-        "already_notified": max(0, len([r for r in reminders if r.get("reminder_date") == today]) - len(triggered)),
+        "already_notified": max(0, reminders_due_today - len(triggered)),
     }
 
 

@@ -52,13 +52,13 @@ export default function ForgotPasswordPage() {
             Send Reset Link
           </Button>
 
-          <Link href="/login" style={{
+          <Link href="/" style={{
             textAlign: 'center',
             color: 'var(--indigo)',
             textDecoration: 'none',
             fontSize: '0.9rem',
           }}>
-            Back to Login
+            Back to Home
           </Link>
         </div>
       </div>

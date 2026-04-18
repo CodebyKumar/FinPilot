@@ -26,6 +26,7 @@ from finpilot.services.parsers.report_parser import (
     extract_fields_from_report_pdf,
     extract_filled_fields_from_pdf,
 )
+from finpilot.services.parsers.itr1_template import ITR1_REPORT_NAME, itr1_template_fields
 from finpilot.tasks.deadline_worker import scan_deadlines_once, dispatch_queued_notifications
 from finpilot.utils.profile_security import (
     decrypt_sensitive_value,
@@ -77,6 +78,128 @@ GSTIN_REGEX = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_REGEX = re.compile(r"^[6-9][0-9]{9}$")
 ASSESSMENT_YEAR_REGEX = re.compile(r"^20[0-9]{2}-[0-9]{2}$")
+
+SUPPORTED_ITR_REPORT_ALIASES = {"ITR1", "ITR-1"}
+
+EMPTY_FIELD_SENTINELS = {None, "", "-", "--", "---", "—", "N/A", "NA", "null", "None"}
+
+ITR1_FIELD_VALUE_KEYS: dict[str, tuple[str, ...]] = {
+    "A1": ("pan",),
+    "A2": ("first name",),
+    "A2a": ("middle name",),
+    "A3": ("last name",),
+    "A4": ("date of birth", "dob"),
+    "A5": ("aadhaar",),
+    "A6a": ("phone", "mobile"),
+    "A6b": ("secondary mobile",),
+    "A7a": ("email",),
+    "A7b": ("secondary email",),
+    "A8a": ("address flat", "flat door block", "address line 1"),
+    "A9a": ("address premises", "building village"),
+    "A10a": ("address street", "road street post office", "street"),
+    "A11a": ("address city", "town city district", "city"),
+    "A12a": ("address state", "state"),
+    "A13a": ("address country", "country"),
+    "A14a": ("address pin code", "pin code"),
+    "A8b": ("secondary address flat",),
+    "A9b": ("secondary address premises",),
+    "A10b": ("secondary address street",),
+    "A11b": ("secondary address city",),
+    "A12b": ("secondary address state",),
+    "A13b": ("secondary address country",),
+    "A14b": ("secondary address pin code",),
+    "A15": ("filed under section", "return filing section", "filing section"),
+    "A16": ("filed in response to notice", "notice section"),
+    "A17": ("nature of employment", "employment type", "occupation"),
+    "A20": ("opting out of new tax regime", "opt out new tax regime", "old regime opted"),
+    "PART_A_GENERAL_INFORMATION.A21.general": ("filing under seventh proviso", "seventh proviso filing", "seventh proviso applicable"),
+    "PART_A_GENERAL_INFORMATION.A21.i": ("foreign travel expenditure",),
+    "PART_A_GENERAL_INFORMATION.A21.ii": ("electricity expenditure",),
+    "PART_A_GENERAL_INFORMATION.A21.iii": ("other prescribed conditions",),
+    "PART_A_GENERAL_INFORMATION.A22.general": ("representative assessee",),
+    "PART_A_GENERAL_INFORMATION.A22.name": ("representative name",),
+    "PART_A_GENERAL_INFORMATION.A22.email": ("representative email",),
+    "PART_A_GENERAL_INFORMATION.A22.contact": ("representative contact",),
+    "PART_B_GROSS_TOTAL_INCOME.B1.total": ("salary income", "income from salary", "income salaries"),
+    "B3": ("income from other sources", "other income"),
+    "B4": ("total income", "total revenue"),
+    "C1": ("total deductions", "deductions total"),
+    "C2": ("total income",),
+    "D11": ("total tax liability", "total tax fee interest"),
+    "D12": ("taxes paid",),
+    "D14": ("refund amount",),
+    "IFS": ("ifsc",),
+    "PART_E_OTHER_INFORMATION.bank_details.bank_name": ("bank name",),
+    "PART_E_OTHER_INFORMATION.bank_details.account_number": ("account number", "bank account"),
+    "PART_E_OTHER_INFORMATION.bank_details.account_type": ("account type",),
+    "PART_E_OTHER_INFORMATION.bank_details.refund_flag": ("selected for refund", "refund flag"),
+    "VERIFICATION.capacity": ("verification capacity", "capacity"),
+    "VERIFICATION.name": ("full name", "name"),
+    "VERIFICATION.date": ("today date",),
+}
+
+ITR1_FIELD_TO_PROFILE_PATH: dict[str, str] = {
+    "A1": "personal_info.pan",
+    "A2": "personal_info.first_name",
+    "A2a": "personal_info.middle_name",
+    "A3": "personal_info.last_name",
+    "A4": "personal_info.dob",
+    "A5": "personal_info.aadhaar",
+    "A6a": "personal_info.phone",
+    "A6b": "personal_info.secondary_phone",
+    "A7a": "personal_info.email",
+    "A7b": "personal_info.secondary_email",
+    "A8a": "personal_info.address.flat",
+    "A9a": "personal_info.address.premises",
+    "A10a": "personal_info.address.street",
+    "A11a": "personal_info.address.city",
+    "A12a": "personal_info.address.state",
+    "A13a": "personal_info.address.country",
+    "A14a": "personal_info.address.pin_code",
+    "A8b": "personal_info.secondary_address.flat",
+    "A9b": "personal_info.secondary_address.premises",
+    "A10b": "personal_info.secondary_address.street",
+    "A11b": "personal_info.secondary_address.city",
+    "A12b": "personal_info.secondary_address.state",
+    "A13b": "personal_info.secondary_address.country",
+    "A14b": "personal_info.secondary_address.pin_code",
+    "A15": "tax_preferences.filed_under_section",
+    "A16": "tax_preferences.notice_section",
+    "A17": "personal_info.occupation",
+    "A20": "tax_preferences.opt_out_new_tax_regime",
+    "PART_A_GENERAL_INFORMATION.A21.general": "tax_preferences.seventh_proviso_applicable",
+    "PART_A_GENERAL_INFORMATION.A21.i": "tax_preferences.foreign_travel_expenditure",
+    "PART_A_GENERAL_INFORMATION.A21.ii": "tax_preferences.electricity_expenditure",
+    "PART_A_GENERAL_INFORMATION.A21.iii": "tax_preferences.other_prescribed_conditions",
+    "PART_A_GENERAL_INFORMATION.A22.general": "tax_preferences.representative_assessee",
+    "PART_A_GENERAL_INFORMATION.A22.name": "tax_preferences.representative_name",
+    "PART_A_GENERAL_INFORMATION.A22.email": "tax_preferences.representative_email",
+    "PART_A_GENERAL_INFORMATION.A22.contact": "tax_preferences.representative_contact",
+    "IFS": "bank_accounts.0.ifsc",
+    "PART_E_OTHER_INFORMATION.bank_details.bank_name": "bank_accounts.0.bank_name",
+    "PART_E_OTHER_INFORMATION.bank_details.account_number": "bank_accounts.0.account_number",
+    "PART_E_OTHER_INFORMATION.bank_details.account_type": "bank_accounts.0.account_type",
+    "PART_E_OTHER_INFORMATION.bank_details.refund_flag": "bank_accounts.0.refund_flag",
+    "VERIFICATION.capacity": "tax_preferences.verification_capacity",
+    "VERIFICATION.name": "personal_info.full_name",
+}
+
+ITR1_MAJORITY_DEFAULT_VALUES: dict[str, Any] = {
+    "A13a": "India",
+    "A13b": "India",
+    "A15": "139(1)",
+    "A16": "Not Applicable",
+    "A17": "Private Sector Employee",
+    "A20": "No",
+    "PART_A_GENERAL_INFORMATION.A21.general": "No",
+    "PART_A_GENERAL_INFORMATION.A21.i": "0",
+    "PART_A_GENERAL_INFORMATION.A21.ii": "0",
+    "PART_A_GENERAL_INFORMATION.A21.iii": "No",
+    "PART_A_GENERAL_INFORMATION.A22.general": "No",
+    "PART_E_OTHER_INFORMATION.bank_details.account_type": "Savings",
+    "PART_E_OTHER_INFORMATION.bank_details.refund_flag": "Yes",
+    "VERIFICATION.capacity": "Self",
+}
 
 
 def _now_iso() -> str:
@@ -275,22 +398,188 @@ def _normalize_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
+def _first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if _is_empty_field_value(value):
+            continue
+        return value
+    return None
+
+
+def _normalize_yes_no(value: Any, default: str | None = None) -> str | None:
+    if _is_empty_field_value(value):
+        return default
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+
+    text = _safe_text(value).lower()
+    if text in {"yes", "y", "true", "1", "x", "checked", "applicable"}:
+        return "Yes"
+    if text in {"no", "n", "false", "0", "na", "n/a", "not applicable", "none", "unchecked"}:
+        return "No"
+    return default if default is not None else _safe_text(value)
+
+
+def _is_empty_field_value(value: Any) -> bool:
+    if value is None:
+        return True
+
+    if isinstance(value, str):
+        return value.strip() in EMPTY_FIELD_SENTINELS
+
+    # Nested objects should not be treated as scalar field values.
+    if isinstance(value, (dict, list, tuple, set)):
+        return len(value) == 0
+
+    try:
+        return value in EMPTY_FIELD_SENTINELS
+    except TypeError:
+        return False
+
+
+def _majority_default_for_field(field_id: str, field_name: str, values: dict[str, Any]):
+    if field_id in {"A13a", "A13b"}:
+        return _first_non_empty(values.get("country"), ITR1_MAJORITY_DEFAULT_VALUES.get(field_id))
+
+    if field_id == "A17":
+        return _first_non_empty(
+            values.get("nature of employment"),
+            values.get("employment type"),
+            values.get("occupation"),
+            ITR1_MAJORITY_DEFAULT_VALUES.get(field_id),
+        )
+
+    if field_id == "A20":
+        return _normalize_yes_no(
+            _first_non_empty(
+                values.get("opting out of new tax regime"),
+                values.get("opt out new tax regime"),
+                values.get("old regime opted"),
+            ),
+            default=str(ITR1_MAJORITY_DEFAULT_VALUES.get(field_id)),
+        )
+
+    if field_id == "PART_A_GENERAL_INFORMATION.A21.general":
+        return _normalize_yes_no(
+            _first_non_empty(
+                values.get("filing under seventh proviso"),
+                values.get("seventh proviso filing"),
+                values.get("seventh proviso applicable"),
+            ),
+            default=str(ITR1_MAJORITY_DEFAULT_VALUES.get(field_id)),
+        )
+
+    if field_id == "PART_A_GENERAL_INFORMATION.A22.general":
+        representative_present = any(
+            not _is_empty_field_value(values.get(key))
+            for key in ("representative name", "representative email", "representative contact")
+        )
+        return "Yes" if representative_present else ITR1_MAJORITY_DEFAULT_VALUES.get(field_id)
+
+    if field_id == "PART_E_OTHER_INFORMATION.bank_details.refund_flag":
+        return _normalize_yes_no(
+            _first_non_empty(values.get("selected for refund"), values.get("refund flag")),
+            default=str(ITR1_MAJORITY_DEFAULT_VALUES.get(field_id)),
+        )
+
+    if field_id in {
+        "A15",
+        "A16",
+        "PART_A_GENERAL_INFORMATION.A21.i",
+        "PART_A_GENERAL_INFORMATION.A21.ii",
+        "PART_A_GENERAL_INFORMATION.A21.iii",
+        "PART_E_OTHER_INFORMATION.bank_details.account_type",
+        "VERIFICATION.capacity",
+    }:
+        return ITR1_MAJORITY_DEFAULT_VALUES.get(field_id)
+
+    if "opting out" in field_name.lower() and field_id not in ITR1_MAJORITY_DEFAULT_VALUES:
+        return "No"
+
+    return None
+
+
+def _normalize_report_name(report_name: Any) -> str:
+    text = _safe_text(report_name or ITR1_REPORT_NAME)
+    compact = text.upper().replace("_", "").replace("-", "").replace(" ", "")
+    if compact in {"", "ITR1"}:
+        return ITR1_REPORT_NAME
+    if text.upper() in SUPPORTED_ITR_REPORT_ALIASES:
+        return ITR1_REPORT_NAME
+    raise ValueError("Only ITR-1 report template is supported for now.")
+
+
+def _itr1_template_base_fields() -> list[dict[str, Any]]:
+    return itr1_template_fields()
+
+
+def _merge_field_values(
+    base_fields: list[dict[str, Any]],
+    incoming_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not incoming_fields:
+        return base_fields
+
+    id_to_index = {
+        _safe_text(field.get("field_id")): index
+        for index, field in enumerate(base_fields)
+        if _safe_text(field.get("field_id"))
+    }
+    name_to_index = {
+        _normalize_key(_safe_text(field.get("field_name"))): index
+        for index, field in enumerate(base_fields)
+        if _safe_text(field.get("field_name"))
+    }
+
+    for incoming in incoming_fields:
+        field_id = _safe_text(incoming.get("field_id") or incoming.get("id"))
+        field_name = _safe_text(incoming.get("field_name") or incoming.get("name"))
+        value = incoming.get("value")
+
+        if _is_empty_field_value(value):
+            continue
+
+        target_index = id_to_index.get(field_id)
+        if target_index is None and field_name:
+            target_index = name_to_index.get(_normalize_key(field_name))
+        if target_index is None:
+            continue
+
+        target = base_fields[target_index]
+        target["value"] = value
+        target["status"] = "filled"
+        target["source"] = incoming.get("source") or target.get("source") or "manual"
+
+    return base_fields
+
+
 def _extract_report_fields(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    report_name = payload.get("report_name", "Generic Report")
+    report_name = _normalize_report_name(payload.get("report_name"))
+    normalized_payload = {**payload, "report_name": report_name}
+    base_fields = _itr1_template_base_fields()
+
+    provided_fields = _coerce_field_list(normalized_payload.get("fields"))
+    base_fields = _merge_field_values(base_fields, provided_fields)
+
     file_path = payload.get("file_path")
     if file_path and os.path.exists(file_path):
         parsed = extract_fields_from_report_pdf(file_path)
         fields = parsed.get("fields", [])
         if fields:
-            return _refine_report_fields_with_ai(report_name, parsed.get("template_text", ""), fields)
+            refined = _refine_report_fields_with_ai(report_name, parsed.get("template_text", ""), fields)
+            base_fields = _merge_field_values(base_fields, _coerce_field_list(refined))
 
     template_text = payload.get("report_template_text")
     if template_text:
         fields = extract_fields_from_template_text(str(template_text))
         if fields:
-            return _refine_report_fields_with_ai(report_name, str(template_text), fields)
+            refined = _refine_report_fields_with_ai(report_name, str(template_text), fields)
+            base_fields = _merge_field_values(base_fields, _coerce_field_list(refined))
 
-    return _extract_fields_from_payload(payload)
+    for field in base_fields:
+        field["status"] = "filled" if not _is_empty_field_value(field.get("value")) else "pending"
+
+    return base_fields
 
 
 def _coerce_field_list(value: Any) -> list[dict[str, Any]]:
@@ -373,25 +662,46 @@ def _prefill_report_fields_from_profile(user_id: str, fields: list[dict[str, Any
             continue
 
         field_name = _safe_text(field.get("field_name") or field.get("name") or "")
+        field_id = _safe_text(field.get("field_id") or field.get("id") or "")
         existing_value = field.get("value")
         selected_value = existing_value
 
-        if selected_value in (None, "", "-", "—", "N/A", "NA"):
-            selected_value = _match_value_for_field(field_name, combined_values)
+        if _is_empty_field_value(selected_value):
+            selected_value = _resolve_prefill_value(field_id, field_name, combined_values)
 
         status = field.get("status") or "pending"
-        if selected_value not in (None, ""):
+        if not _is_empty_field_value(selected_value):
             status = "filled"
 
         filled.append({
-            "field_id": field.get("field_id") or field.get("id") or f"A{len(filled) + 1}",
+            "field_id": field_id or f"A{len(filled) + 1}",
             "field_name": field_name or f"Field {len(filled) + 1}",
             "value": selected_value,
             "status": status,
-            "source": field.get("source") or ("profile" if selected_value not in (None, "") else "manual"),
+            "source": field.get("source") or ("profile" if not _is_empty_field_value(selected_value) else "manual"),
+            "section": field.get("section"),
+            "path": field.get("path"),
+            "required": field.get("required", True),
+            "prompt": field.get("prompt") or f"Please provide {field_name or f'Field {len(filled) + 1}'}",
         })
 
     return filled
+
+
+def _resolve_prefill_value(field_id: str, field_name: str, values: dict[str, Any]):
+    mapped_keys = ITR1_FIELD_VALUE_KEYS.get(field_id, ())
+    for key in mapped_keys:
+        if key == "today date":
+            return datetime.now().date().isoformat()
+        mapped_value = values.get(key)
+        if not _is_empty_field_value(mapped_value):
+            return mapped_value
+
+    fuzzy_value = _match_value_for_field(field_name, values)
+    if not _is_empty_field_value(fuzzy_value):
+        return fuzzy_value
+
+    return _majority_default_for_field(field_id, field_name, values)
 
 
 def _match_value_for_field(field_name: str, values: dict[str, Any]):
@@ -819,20 +1129,118 @@ def _profile_value_map(user_id: str) -> dict[str, Any]:
     personal = profile_doc.get("personal_info", {}) if isinstance(profile_doc.get("personal_info"), dict) else {}
     business = profile_doc.get("business_info", {}) if isinstance(profile_doc.get("business_info"), dict) else {}
     tax_preferences = profile_doc.get("tax_preferences", {}) if isinstance(profile_doc.get("tax_preferences"), dict) else {}
+    address = personal.get("address", {}) if isinstance(personal.get("address"), dict) else {}
+    secondary_address = personal.get("secondary_address", {}) if isinstance(personal.get("secondary_address"), dict) else {}
+    bank_accounts = profile_doc.get("bank_accounts", [])
+    first_account = bank_accounts[0] if isinstance(bank_accounts, list) and bank_accounts and isinstance(bank_accounts[0], dict) else {}
 
     full_name = _safe_text(personal.get("full_name") or personal.get("name"))
     first_name = _safe_text(personal.get("first_name"))
+    middle_name = _safe_text(personal.get("middle_name"))
     last_name = _safe_text(personal.get("last_name"))
 
     if full_name and not first_name:
         first_name = full_name.split(" ")[0]
+    if full_name and not middle_name and len(full_name.split(" ")) > 2:
+        middle_name = " ".join(full_name.split(" ")[1:-1])
     if full_name and not last_name and len(full_name.split(" ")) > 1:
         last_name = full_name.split(" ")[-1]
+
+    gst_value = business.get("gst_number") or business.get("gstin")
+    assessment_year = _first_non_empty(tax_preferences.get("assessment_year"), tax_preferences.get("ay"))
+    financial_year = _first_non_empty(tax_preferences.get("financial_year"), tax_preferences.get("fy"), tax_preferences.get("tds_year"))
+    if _is_empty_field_value(assessment_year) and isinstance(financial_year, str):
+        fy_match = re.match(r"^(20\d{2})[-/](\d{2})$", _safe_text(financial_year))
+        if fy_match:
+            start_year = int(fy_match.group(1)) + 1
+            end_year = (int(fy_match.group(2)) + 1) % 100
+            assessment_year = f"{start_year}-{end_year:02d}"
+
+    taxes_paid = _first_non_empty(
+        tax_preferences.get("taxes_paid"),
+        tax_preferences.get("total_taxes_paid"),
+        tax_preferences.get("tax_paid"),
+    )
+    refund_amount = _first_non_empty(
+        tax_preferences.get("refund_amount"),
+        tax_preferences.get("amount_refund"),
+    )
+    filed_under_section = _first_non_empty(
+        tax_preferences.get("filed_under_section"),
+        tax_preferences.get("return_filing_section"),
+        tax_preferences.get("filing_section"),
+        "139(1)",
+    )
+    filed_in_response_notice = _first_non_empty(
+        tax_preferences.get("notice_section"),
+        tax_preferences.get("filed_in_response_to_notice"),
+        "Not Applicable",
+    )
+    nature_of_employment = _first_non_empty(
+        tax_preferences.get("nature_of_employment"),
+        tax_preferences.get("employment_type"),
+        personal.get("occupation"),
+        "Private Sector Employee",
+    )
+    opt_out_new_regime = _normalize_yes_no(
+        _first_non_empty(
+            tax_preferences.get("opt_out_new_tax_regime"),
+            tax_preferences.get("opting_out_115bac"),
+            tax_preferences.get("old_regime_opted"),
+        ),
+        default="No",
+    )
+    seventh_proviso_filing = _normalize_yes_no(
+        _first_non_empty(
+            tax_preferences.get("seventh_proviso_filing"),
+            tax_preferences.get("seventh_proviso_applicable"),
+        ),
+        default="No",
+    )
+    representative_assessee = _normalize_yes_no(
+        _first_non_empty(
+            tax_preferences.get("representative_assessee"),
+            tax_preferences.get("has_representative"),
+        ),
+        default="No",
+    )
+    salary_income_pref = _first_non_empty(
+        tax_preferences.get("salary_income"),
+        tax_preferences.get("income_from_salary"),
+        tax_preferences.get("income_salaries"),
+    )
+    other_income_pref = _first_non_empty(
+        tax_preferences.get("income_from_other_sources"),
+        tax_preferences.get("other_income"),
+        tax_preferences.get("other_sources_income"),
+    )
+    total_deductions_pref = _first_non_empty(
+        tax_preferences.get("total_deductions"),
+        tax_preferences.get("deductions_total"),
+    )
+    total_tax_liability_pref = _first_non_empty(
+        tax_preferences.get("total_tax_liability"),
+        tax_preferences.get("total_tax_fee_interest"),
+    )
+    refund_flag = _normalize_yes_no(
+        _first_non_empty(
+            first_account.get("refund_flag"),
+            tax_preferences.get("refund_flag"),
+            tax_preferences.get("selected_for_refund"),
+        ),
+        default="Yes",
+    )
+    verification_capacity = _first_non_empty(
+        tax_preferences.get("verification_capacity"),
+        tax_preferences.get("capacity"),
+        "Self",
+    )
 
     lookup: dict[str, Any] = {
         "name": full_name,
         "full name": full_name,
         "first name": first_name,
+        "middle name": middle_name,
         "last name": last_name,
         "pan": personal.get("pan"),
         "aadhaar": personal.get("aadhaar"),
@@ -840,15 +1248,60 @@ def _profile_value_map(user_id: str) -> dict[str, Any]:
         "date of birth": personal.get("dob") or personal.get("date_of_birth"),
         "phone": personal.get("phone") or personal.get("mobile"),
         "mobile": personal.get("mobile") or personal.get("phone"),
+        "secondary mobile": personal.get("secondary_phone") or personal.get("alternate_phone"),
         "email": personal.get("email"),
+        "secondary email": personal.get("secondary_email") or personal.get("alternate_email"),
         "address": personal.get("address"),
+        "address flat": address.get("flat") or address.get("flat_no") or address.get("door_no"),
+        "address premises": address.get("premises") or address.get("building") or address.get("village"),
+        "address street": address.get("street") or address.get("road") or address.get("post_office"),
+        "address city": address.get("city") or address.get("district") or address.get("town"),
+        "address state": address.get("state"),
+        "address country": address.get("country"),
+        "address pin code": address.get("pin_code") or address.get("pincode"),
+        "secondary address flat": secondary_address.get("flat") or secondary_address.get("flat_no") or secondary_address.get("door_no"),
+        "secondary address premises": secondary_address.get("premises") or secondary_address.get("building") or secondary_address.get("village"),
+        "secondary address street": secondary_address.get("street") or secondary_address.get("road") or secondary_address.get("post_office"),
+        "secondary address city": secondary_address.get("city") or secondary_address.get("district") or secondary_address.get("town"),
+        "secondary address state": secondary_address.get("state"),
+        "secondary address country": secondary_address.get("country"),
+        "secondary address pin code": secondary_address.get("pin_code") or secondary_address.get("pincode"),
         "business name": business.get("business_name"),
         "entity type": business.get("entity_type"),
         "industry": business.get("industry"),
-        "gstin": business.get("gstin"),
+        "gstin": gst_value,
+        "gst number": gst_value,
         "annual turnover": business.get("annual_turnover"),
-        "assessment year": tax_preferences.get("assessment_year"),
-        "financial year": tax_preferences.get("financial_year"),
+        "assessment year": assessment_year,
+        "financial year": financial_year,
+        "filed under section": filed_under_section,
+        "filed in response to notice": filed_in_response_notice,
+        "nature of employment": nature_of_employment,
+        "opting out of new tax regime": opt_out_new_regime,
+        "opt out new tax regime": opt_out_new_regime,
+        "filing under seventh proviso": seventh_proviso_filing,
+        "seventh proviso filing": seventh_proviso_filing,
+        "seventh proviso applicable": seventh_proviso_filing,
+        "foreign travel expenditure": _first_non_empty(tax_preferences.get("foreign_travel_expenditure"), "0"),
+        "electricity expenditure": _first_non_empty(tax_preferences.get("electricity_expenditure"), "0"),
+        "other prescribed conditions": _normalize_yes_no(tax_preferences.get("other_prescribed_conditions"), default="No"),
+        "representative assessee": representative_assessee,
+        "representative name": tax_preferences.get("representative_name"),
+        "representative email": tax_preferences.get("representative_email"),
+        "representative contact": tax_preferences.get("representative_contact"),
+        "verification capacity": verification_capacity,
+        "capacity": verification_capacity,
+        "today date": datetime.now().date().isoformat(),
+        "taxes paid": taxes_paid,
+        "refund amount": refund_amount,
+        "salary income": salary_income_pref,
+        "income from salary": salary_income_pref,
+        "income from other sources": other_income_pref,
+        "other income": other_income_pref,
+        "total deductions": total_deductions_pref,
+        "total tax liability": total_tax_liability_pref,
+        "selected for refund": refund_flag,
+        "refund flag": refund_flag,
     }
 
     for key, value in personal.items():
@@ -861,25 +1314,45 @@ def _profile_value_map(user_id: str) -> dict[str, Any]:
         if normalized_key and normalized_key not in lookup:
             lookup[normalized_key] = value
 
-    bank_accounts = profile_doc.get("bank_accounts", [])
-    if isinstance(bank_accounts, list) and bank_accounts:
-        first_account = bank_accounts[0]
-        if isinstance(first_account, dict):
-            lookup["bank account"] = first_account.get("account_number") or first_account.get("number")
-            lookup["account number"] = first_account.get("account_number") or first_account.get("number")
-            lookup["ifsc"] = first_account.get("ifsc")
+    if first_account:
+        lookup["bank account"] = first_account.get("account_number") or first_account.get("number")
+        lookup["account number"] = first_account.get("account_number") or first_account.get("number")
+        lookup["ifsc"] = first_account.get("ifsc")
+        lookup["bank name"] = first_account.get("bank_name")
+        lookup["account type"] = _first_non_empty(first_account.get("account_type"), "Savings")
+        lookup["selected for refund"] = _normalize_yes_no(first_account.get("refund_flag"), default=refund_flag)
 
     income_sources = profile_doc.get("income_sources", [])
     if isinstance(income_sources, list):
         total_income = 0.0
+        salary_income = 0.0
+        other_income = 0.0
         for item in income_sources:
             if isinstance(item, dict):
                 try:
-                    total_income += float(item.get("amount", 0.0) or 0.0)
+                    amount = float(item.get("amount", item.get("value", 0.0)) or 0.0)
                 except Exception:
                     continue
+                total_income += amount
+                source_kind = _normalize_key(
+                    _safe_text(item.get("type") or item.get("category") or item.get("source") or item.get("name"))
+                )
+                if any(token in source_kind for token in ("salary", "pension", "wage", "employment")):
+                    salary_income += amount
+                else:
+                    other_income += amount
         if total_income > 0:
             lookup["total income"] = round(total_income, 2)
+        if salary_income > 0:
+            if _is_empty_field_value(lookup.get("salary income")):
+                lookup["salary income"] = round(salary_income, 2)
+            if _is_empty_field_value(lookup.get("income from salary")):
+                lookup["income from salary"] = round(salary_income, 2)
+        if other_income > 0:
+            if _is_empty_field_value(lookup.get("income from other sources")):
+                lookup["income from other sources"] = round(other_income, 2)
+            if _is_empty_field_value(lookup.get("other income")):
+                lookup["other income"] = round(other_income, 2)
 
     return lookup
 
@@ -901,20 +1374,136 @@ def _ledger_value_map(user_id: str) -> dict[str, Any]:
     }
 
 
+def _set_nested_dict_path(container: dict[str, Any], path: str, value: Any) -> None:
+    parts = [part for part in path.split(".") if part]
+    if not parts:
+        return
+
+    current = container
+    for index, part in enumerate(parts):
+        is_last = index == len(parts) - 1
+        if is_last:
+            current[part] = value
+            return
+        next_value = current.get(part)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[part] = next_value
+        current = next_value
+
+
+def _build_profile_updates_from_fields(fields: list[dict[str, Any]]) -> dict[str, Any]:
+    updates: dict[str, Any] = {}
+
+    for field in fields:
+        field_id = _safe_text(field.get("field_id"))
+        profile_path = ITR1_FIELD_TO_PROFILE_PATH.get(field_id)
+        if not profile_path:
+            continue
+
+        value = field.get("value")
+        if _is_empty_field_value(value):
+            continue
+
+        if isinstance(value, str):
+            value = value.strip()
+        if _is_empty_field_value(value):
+            continue
+
+        if isinstance(value, str) and "*" in value and any(token in profile_path for token in ("pan", "aadhaar", "account_number")):
+            continue
+
+        if profile_path.startswith("bank_accounts."):
+            parts = profile_path.split(".")
+            if len(parts) < 3 or not parts[1].isdigit():
+                continue
+            account_index = int(parts[1])
+            account_path = ".".join(parts[2:])
+            bank_accounts = updates.setdefault("bank_accounts", [])
+            if not isinstance(bank_accounts, list):
+                bank_accounts = []
+                updates["bank_accounts"] = bank_accounts
+            while len(bank_accounts) <= account_index:
+                bank_accounts.append({})
+            if not isinstance(bank_accounts[account_index], dict):
+                bank_accounts[account_index] = {}
+            _set_nested_dict_path(bank_accounts[account_index], account_path, value)
+            continue
+
+        root, _, nested_path = profile_path.partition(".")
+        if not nested_path:
+            updates[root] = value
+            continue
+        root_container = updates.setdefault(root, {})
+        if not isinstance(root_container, dict):
+            root_container = {}
+            updates[root] = root_container
+        _set_nested_dict_path(root_container, nested_path, value)
+
+    personal_info = updates.get("personal_info")
+    if isinstance(personal_info, dict):
+        first_name = _safe_text(personal_info.get("first_name"))
+        middle_name = _safe_text(personal_info.get("middle_name"))
+        last_name = _safe_text(personal_info.get("last_name"))
+        if not _safe_text(personal_info.get("full_name")):
+            name_parts = [part for part in [first_name, middle_name, last_name] if part]
+            if name_parts:
+                personal_info["full_name"] = " ".join(name_parts)
+
+    cleaned_updates: dict[str, Any] = {}
+    for key, value in updates.items():
+        if isinstance(value, dict) and value:
+            cleaned_updates[key] = value
+        elif isinstance(value, list):
+            non_empty_items = [item for item in value if isinstance(item, dict) and item]
+            if non_empty_items:
+                cleaned_updates[key] = value
+        elif value not in (None, ""):
+            cleaned_updates[key] = value
+
+    return cleaned_updates
+
+
+def _sync_profile_from_report_fields(user_id: str, fields: list[dict[str, Any]]) -> bool:
+    profile_updates = _build_profile_updates_from_fields(fields)
+    if not profile_updates:
+        return False
+    update_profile(user_id, profile_updates)
+    return True
+
+
 def _task_report_extract_fields(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    extracted_fields = _extract_report_fields(payload)
+    report_name = _normalize_report_name(payload.get("report_name"))
+    normalized_payload = {**payload, "report_name": report_name}
+    extracted_fields = _extract_report_fields(normalized_payload)
     filled_entities = _prefill_report_fields_from_profile(user_id, extracted_fields)
+    missing_fields = [
+        {
+            "field_id": field.get("field_id"),
+            "field_name": field.get("field_name"),
+            "prompt": field.get("prompt") or f"Please provide {field.get('field_name')}",
+            "source": "profile_or_manual",
+            "section": field.get("section"),
+        }
+        for field in filled_entities
+        if _is_empty_field_value(field.get("value"))
+    ]
+
     return {
-        "report_name": payload.get("report_name", "Generic Report"),
-        "fields": extracted_fields,
+        "report_name": report_name,
+        "fields": filled_entities,
         "filled_entities": filled_entities,
         "prefill_fields": filled_entities,
+        "missing_fields": missing_fields,
+        "required_user_inputs": missing_fields,
         "profile_values": _profile_value_map(user_id),
     }
 
 
 def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    extracted = _extract_report_fields(payload)
+    report_name = _normalize_report_name(payload.get("report_name"))
+    normalized_payload = {**payload, "report_name": report_name}
+    extracted = _extract_report_fields(normalized_payload)
     values = {}
     values.update(_profile_value_map(user_id))
     values.update(_ledger_value_map(user_id))
@@ -922,31 +1511,43 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
     filled: list[dict[str, Any]] = []
 
     for field in extracted:
+        field_id = _safe_text(field.get("field_id") or f"A{len(filled) + 1}")
         field_name = _safe_text(field.get("field_name") or "")
         selected_value = field.get("value")
+        source = field.get("source")
 
-        if selected_value in (None, ""):
-            selected_value = _match_value_for_field(field_name, values)
+        if _is_empty_field_value(selected_value):
+            selected_value = _resolve_prefill_value(field_id, field_name, values)
+            if not _is_empty_field_value(selected_value):
+                source = "profile_or_ledger"
 
         normalized_field = {
-            "field_id": field.get("field_id") or f"A{len(filled) + 1}",
+            "field_id": field_id,
             "field_name": field_name or f"Field {len(filled) + 1}",
             "value": selected_value,
             "status": "filled",
+            "section": field.get("section"),
+            "path": field.get("path"),
+            "required": field.get("required", True),
+            "prompt": field.get("prompt") or f"Please provide {field_name or f'Field {len(filled) + 1}'}",
+            "source": source or "manual",
         }
 
-        if selected_value is None:
+        if _is_empty_field_value(selected_value):
             normalized_field["status"] = "missing"
             missing_fields.append({
                 "field_id": normalized_field["field_id"],
                 "field_name": normalized_field["field_name"],
-                "prompt": f"Please provide {normalized_field['field_name']}",
+                "prompt": normalized_field["prompt"],
                 "source": "profile_or_manual",
+                "section": normalized_field.get("section"),
             })
         else:
             normalized_field["value"] = selected_value
 
         filled.append(normalized_field)
+
+    _sync_profile_from_report_fields(user_id, filled)
 
     prefilled_fields = _prefill_report_fields_from_profile(user_id, filled)
 
@@ -956,9 +1557,22 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
     ) or {}
     profile_missing_required = _missing_required_profile_fields(_decrypt_profile_doc(profile_doc))
 
-    required_user_inputs = missing_fields[:]
+    required_user_inputs: list[dict[str, Any]] = []
+    seen_required_ids: set[str] = set()
+
+    for item in missing_fields:
+        req_id = _safe_text(item.get("field_id") or item.get("field_name"))
+        if req_id and req_id in seen_required_ids:
+            continue
+        if req_id:
+            seen_required_ids.add(req_id)
+        required_user_inputs.append(item)
+
     for field_path in profile_missing_required:
         readable_name = field_path.replace(".", " ").replace("_", " ")
+        if field_path in seen_required_ids:
+            continue
+        seen_required_ids.add(field_path)
         required_user_inputs.append(
             {
                 "field_id": field_path,
@@ -969,25 +1583,29 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
         )
 
     report_id = payload.get("report_id") or str(uuid4())
+    existing_report = _reports_collection().find_one({"report_id": report_id, "user_id": user_id}, {"_id": 0, "created_at": 1}) or {}
     report_doc = {
         "report_id": report_id,
         "user_id": user_id,
         "status": "generated" if not required_user_inputs else "needs_user_input",
-        "report_name": payload.get("report_name", "Generic Report"),
+        "report_name": report_name,
         "fields": filled,
         "missing_fields": missing_fields,
         "required_user_inputs": required_user_inputs,
         "profile_missing_required": profile_missing_required,
-        "created_at": _now_iso(),
+        "created_at": existing_report.get("created_at") or _now_iso(),
         "updated_at": _now_iso(),
+        "schema_version": "itr1-v1",
     }
     _reports_collection().update_one({"report_id": report_id}, {"$set": report_doc}, upsert=True)
 
     return {
         "report_id": report_id,
+        "report_name": report_name,
         "status": report_doc["status"],
         "fields": filled,
         "filled_entities": prefilled_fields,
+        "prefill_fields": prefilled_fields,
         "missing_fields": missing_fields,
         "required_user_inputs": required_user_inputs,
     }
@@ -1045,25 +1663,29 @@ def _task_report_prefill(user_id: str, payload: dict[str, Any]) -> dict[str, Any
 
     profile_values = _profile_value_map(user_id)
     ledger_values = _ledger_value_map(user_id)
-
-    form_fields = [
-        {"field_id": "full_name", "field_name": "Full Name", "value": profile_values.get("name") or profile_values.get("full name"), "source": "profile", "status": "filled"},
-        {"field_id": "phone", "field_name": "Phone", "value": profile_values.get("phone") or profile_values.get("mobile"), "source": "profile", "status": "filled"},
-        {"field_id": "email", "field_name": "Email", "value": profile_values.get("email"), "source": "profile", "status": "filled"},
-        {"field_id": "pan", "field_name": "PAN", "value": profile_values.get("pan"), "source": "profile", "status": "filled"},
-        {"field_id": "aadhaar", "field_name": "Aadhaar", "value": profile_values.get("aadhaar"), "source": "profile", "status": "filled"},
-        {"field_id": "business_name", "field_name": "Business Name", "value": profile_values.get("business name"), "source": "profile", "status": "filled"},
-        {"field_id": "entity_type", "field_name": "Entity Type", "value": profile_values.get("entity type"), "source": "profile", "status": "filled"},
-        {"field_id": "gstin", "field_name": "GSTIN", "value": profile_values.get("gstin"), "source": "profile", "status": "filled"},
-        {"field_id": "annual_turnover", "field_name": "Annual Turnover", "value": profile_values.get("annual turnover"), "source": "profile", "status": "filled"},
-        {"field_id": "net_cash_flow", "field_name": "Net Cash Flow", "value": ledger_values.get("net cash flow"), "source": "ledger", "status": "filled"},
-        {"field_id": "total_income", "field_name": "Total Income", "value": profile_values.get("total income") or ledger_values.get("total revenue"), "source": "ledger", "status": "filled"},
+    report_name = ITR1_REPORT_NAME
+    fields = _extract_report_fields({"report_name": report_name})
+    form_fields = _prefill_report_fields_from_profile(user_id, fields)
+    missing_fields = [
+        {
+            "field_id": field.get("field_id"),
+            "field_name": field.get("field_name"),
+            "prompt": field.get("prompt") or f"Please provide {field.get('field_name')}",
+            "source": "profile_or_manual",
+            "section": field.get("section"),
+        }
+        for field in form_fields
+        if _is_empty_field_value(field.get("value"))
     ]
 
     return {
+        "report_name": report_name,
         "profile": profile_doc,
         "user": user_doc,
+        "fields": form_fields,
         "prefill_fields": form_fields,
+        "missing_fields": missing_fields,
+        "required_user_inputs": missing_fields,
         "profile_values": profile_values,
         "ledger_values": ledger_values,
     }
@@ -1145,16 +1767,21 @@ def _analyze_fields(fields: list[dict[str, Any]], profile_values: dict[str, Any]
 def _task_report_analyze(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     fields: list[dict[str, Any]] = []
 
-    if payload.get("report_id"):
+    payload_fields = _coerce_field_list(payload.get("fields"))
+    if payload_fields:
+        fields = payload_fields
+
+    if not fields and payload.get("report_id"):
         report = _reports_collection().find_one({"report_id": payload["report_id"], "user_id": user_id}, {"_id": 0})
         if report:
             fields = report.get("fields", fields)
 
     if not fields:
+        normalized_payload = {**payload, "report_name": _normalize_report_name(payload.get("report_name"))}
         if payload.get("file_path") and os.path.exists(payload["file_path"]):
             fields = extract_filled_fields_from_pdf(payload["file_path"])
         else:
-            fields = _extract_report_fields(payload)
+            fields = _extract_report_fields(normalized_payload)
 
     profile_values = _profile_value_map(user_id)
     analysis = _analyze_fields(fields, profile_values)

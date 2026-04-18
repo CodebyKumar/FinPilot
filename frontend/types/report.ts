@@ -1,4 +1,4 @@
-export type ReportType = 'ITR2' | 'ITR3' | 'ITR4' | 'GSTR1' | 'GSTR3B' | 'GST_AUDIT' | 'FINANCIAL_STATEMENT';
+export type ReportType = 'ITR-1';
 
 export interface ReportField {
   id: string;
