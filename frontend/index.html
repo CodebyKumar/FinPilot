@@ -2615,7 +2615,12 @@ async function fetchInsights() {
       document.getElementById('book-notes').innerHTML = allNotes.length ? allNotes.map(n => `<div class="action-card amber"><div class="action-msg">${n}</div></div>`).join('') : '<div class="empty-state">No bookkeeping notes generated</div>';
       document.getElementById('book-raw').textContent = JSON.stringify(data, null, 2);
       document.getElementById('book-grid').style.display = 'grid';
-      showToast('Bookkeeping summary loaded', 'success');
+
+      const reportsUidInput = document.getElementById('reports-uid');
+      if (reportsUidInput) reportsUidInput.value = uid;
+      await generateFinancialReport(uid, true);
+
+      showToast('Bookkeeping summary loaded and Financial Report prepared', 'success');
     } catch (e) {
       showToast('Bookkeeping fetch failed: ' + e.message, 'error');
     }
@@ -3550,17 +3555,17 @@ async function fetchInsights() {
     }
   }
 
-  async function generateFinancialReport() {
-    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+  async function generateFinancialReport(uidOverride = null, silent = false) {
+    const uid = uidOverride || document.getElementById('reports-uid').value.trim() || USER_ID;
     if (!uid) { showToast('Enter User ID for Financial Report generation', 'error'); return; }
     try {
-      showToast('Generating Comprehensive Financial Report…', 'success');
+      if (!silent) showToast('Generating Comprehensive Financial Report…', 'success');
       const r = await fetch(`${API}/reports/financial/generate/${uid}`, { method: 'POST' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
       if (data.status === 'ok') {
-        showToast('Financial Report generated! Click "Download Financial Report" to save.', 'success');
+        if (!silent) showToast('Financial Report generated! Click "Download Financial Report" to save.', 'success');
       } else {
         showToast('Report generation error: ' + (data.message || 'Unknown error'), 'error');
       }

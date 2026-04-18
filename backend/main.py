@@ -18,6 +18,7 @@ from finpilot.api.routers import (
     bookkeeping,
     report,
     overall_report,
+    financial_report,
     deadline,
     assistant,
 )
@@ -64,6 +65,7 @@ app.include_router(profile.router)
 app.include_router(bookkeeping.router)
 app.include_router(report.router)
 app.include_router(overall_report.router)
+app.include_router(financial_report.router)
 app.include_router(deadline.router)
 app.include_router(assistant.router)
 
