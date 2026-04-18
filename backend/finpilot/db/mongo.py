@@ -6,7 +6,7 @@ No connection strings are hardcoded here.
 """
 
 import logging
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, PyMongoError
 
 from finpilot import config
@@ -29,6 +29,11 @@ def _get_db():
     return _get_client()[config.DB_NAME]
 
 
+def get_compliance_calendar_collection():
+    """Return the compliance_calendar collection."""
+    return _get_db()["compliance_calendar"]
+
+
 def init_db() -> None:
     """
     Perform any one-time database initialisation tasks.
@@ -36,11 +41,20 @@ def init_db() -> None:
     """
     try:
         db = _get_db()
-        # Remove stale email index if it exists (legacy artefact)
         try:
             db["users"].drop_index("email_1")
         except Exception:
-            pass  # Index doesn't exist – that's fine
+            pass
+
+        db["profiles"].create_index([("user_id", ASCENDING)], unique=True)
+        db["transactions"].create_index([("user_id", ASCENDING), ("date", DESCENDING)])
+        db["reports"].create_index([("user_id", ASCENDING), ("status", ASCENDING), ("created_at", DESCENDING)])
+        db["deadlines"].create_index([("user_id", ASCENDING), ("due_date", ASCENDING), ("status", ASCENDING)])
+        db["jobs"].create_index([("job_id", ASCENDING)], unique=True)
+        db["jobs"].create_index([("status", ASCENDING), ("created_at", DESCENDING)])
+        db["notifications"].create_index([("notification_key", ASCENDING)], unique=True)
+        db["invoices"].create_index([("invoice_id", ASCENDING)], unique=True)
+
         logger.info("Database initialised successfully.")
     except PyMongoError as exc:
         logger.error("Database initialisation failed: %s", exc)
@@ -87,7 +101,8 @@ def save_user(
     business_name: str,
     industry: str = "Unknown",
     entity_type: str = "Unknown",
-    annual_turnover: float = 0.0
+    annual_turnover: float = 0.0,
+    external_user_id: str | None = None,
 ) -> str:
     """
     Create or update a user profile keyed by phone number.
@@ -99,8 +114,10 @@ def save_user(
         "business_name": business_name,
         "industry": industry,
         "entity_type": entity_type,
-        "annual_turnover": annual_turnover
+        "annual_turnover": annual_turnover,
     }
+    if external_user_id:
+        user_doc["external_user_id"] = external_user_id
     try:
         result = _get_db()["users"].find_one_and_update(
             {"phone": phone},
@@ -116,15 +133,28 @@ def save_user(
 
 def get_user(user_id: str) -> dict | None:
     """Retrieve user profiling data."""
+    user = None
     try:
         from bson.objectid import ObjectId
         user = _get_db()["users"].find_one({"_id": ObjectId(user_id)})
-        if user:
-            user["_id"] = str(user["_id"])
-        return user
     except Exception as exc:
-        logger.error("Failed to get user %s: %s", user_id, exc)
-        return None
+        logger.debug("ObjectId lookup failed for user %s: %s", user_id, exc)
+
+    if not user:
+        try:
+            user = _get_db()["users"].find_one({"external_user_id": user_id})
+        except Exception as exc:
+            logger.error("Failed to lookup user by external_user_id %s: %s", user_id, exc)
+
+    if not user:
+        try:
+            user = _get_db()["users"].find_one({"phone": user_id})
+        except Exception as exc:
+            logger.error("Failed to lookup user by phone %s: %s", user_id, exc)
+
+    if user:
+        user["_id"] = str(user["_id"])
+    return user
 
 
 def get_transactions_by_user(user_id: str) -> list:

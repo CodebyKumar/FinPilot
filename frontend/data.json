@@ -1,0 +1,162 @@
+{
+  "full_name": "Aarav Sharma",
+  "first_name": "Aarav",
+  "middle_name": "Kumar",
+  "last_name": "Sharma",
+  "date_of_birth": "1994-08-17",
+  "gender": "Male",
+  "marital_status": "Single",
+  "nationality": "Indian",
+  "phone": "+91-98765-43210",
+  "alternate_phone": "+91-91234-56789",
+  "email": "aarav.sharma@example.com",
+  "father_name": "Rajesh Sharma",
+  "mother_name": "Sunita Sharma",
+  "occupation": "Software Engineer",
+  "employer": "Nimbus Technologies Pvt. Ltd.",
+  "designation": "Senior Developer",
+  "annual_income": "1450000",
+  "pan": "ABCDE1234F",
+  "aadhaar": "1234 5678 9012",
+  "passport_number": "P1234567",
+  "voter_id": "XYZ1234567",
+  "address": {
+    "line1": "Flat 12B, Sunrise Residency",
+    "line2": "Opp. Green Park",
+    "city": "Pune",
+    "district": "Pune",
+    "state": "Maharashtra",
+    "postal_code": "411014",
+    "country": "India"
+  },
+  "permanent_address": {
+    "line1": "Flat 12B, Sunrise Residency",
+    "line2": "Opp. Green Park",
+    "city": "Pune",
+    "district": "Pune",
+    "state": "Maharashtra",
+    "postal_code": "411014",
+    "country": "India"
+  },
+  "bank_details": {
+    "account_holder_name": "Aarav Sharma",
+    "bank_name": "HDFC Bank",
+    "account_number": "012345678901",
+    "ifsc": "HDFC0001234",
+    "branch": "Baner Branch"
+  },
+  "emergency_contact": {
+    "name": "Meera Sharma",
+    "relationship": "Sister",
+    "phone": "+91-99887-76655"
+  },
+  "preferences": {
+    "subscribe_newsletter": false,
+    "marketing_consent": false,
+    "terms_accepted": true
+  },
+  "tax_forms": {
+    "itr2": {
+      "short_term_capital_gains": "90000",
+      "long_term_capital_gains": "185000",
+      "capital_gains": "275000",
+      "house_property_income": "120000",
+      "dividend_income": "18500",
+      "agricultural_income": "0",
+      "foreign_income": "0",
+      "foreign_assets": "No"
+    },
+    "itr3": {
+      "business_income": "0",
+      "business_turnover": "620000",
+      "professional_receipts": "240000",
+      "profit_before_tax": "165000",
+      "gstin": "27ABCDE1234F1Z5",
+      "audit_required": "No",
+      "books_maintained": "Yes",
+      "depreciation_claimed": "12000"
+    },
+    "itr4": {
+      "turnover_44ad": "0",
+      "receipts_44ada": "240000",
+      "presumptive_income": "120000",
+      "cash_receipts_percent": "40",
+      "digital_receipts_percent": "60",
+      "cash_deposits": "25000",
+      "business_code": "6201",
+      "advance_tax_paid": "18000"
+    },
+    "f80c": {
+      "amount": "150000",
+      "instrument": "PPF",
+      "policy_number": "POL982341",
+      "provider": "SBI Life",
+      "ppf_amount": "50000",
+      "elss_amount": "25000",
+      "life_insurance_premium": "18000",
+      "tuition_fees": "30000",
+      "home_loan_principal": "27000",
+      "total_claimed": "150000"
+    },
+    "f80d": {
+      "self_premium": "22000",
+      "spouse_children_premium": "0",
+      "parents_premium": "28000",
+      "insurer": "Star Health",
+      "policy_number": "SH-908172",
+      "preventive_checkup": "5000",
+      "parents_senior_citizen": "No",
+      "mode_of_payment": "UPI"
+    },
+    "f80e": {
+      "lender": "State Bank of India",
+      "loan_account": "SBI-EDU-783421",
+      "interest_paid": "42000",
+      "student_name": "Aarav Sharma",
+      "institution": "Indian Institute of Technology",
+      "course": "M.Tech",
+      "loan_start_year": "2021",
+      "certificate_number": "SBI-E-2024-1188"
+    },
+    "f80g": {
+      "donee_name": "Teach India Foundation",
+      "donee_pan": "AABCT1234D",
+      "donation_amount": "15000",
+      "eligible_percent": "50",
+      "donation_date": "2024-12-20",
+      "payment_mode": "UPI",
+      "approval_number": "80G-APP-7712",
+      "receipt_number": "RCP-2024-5510"
+    },
+    "hra": {
+      "annual_rent": "300000",
+      "basic_salary": "720000",
+      "hra_received": "180000",
+      "landlord_pan": "LMNOP4321K",
+      "landlord_name": "Vijay Mehta",
+      "months_rented": "12",
+      "rent_agreement": "Yes",
+      "metro_city": "Yes"
+    },
+    "f16": {
+      "employer_name": "Nimbus Technologies Pvt. Ltd.",
+      "employer_tan": "PNEA12345B",
+      "employer_address": "Hinjewadi, Pune, Maharashtra",
+      "employee_pan": "ABCDE1234F",
+      "gross_salary": "1450000",
+      "exempt_allowances": "95000",
+      "taxable_salary": "1355000",
+      "tds_deducted": "185000"
+    },
+    "f26as": {
+      "total_tds": "185000",
+      "advance_tax": "25000",
+      "self_assessment_tax": "5000",
+      "refund_received": "0",
+      "tcs": "0",
+      "interest": "12000",
+      "challan_number": "CHL-2024-9981",
+      "remark": "Matched with salary and self-assessment entries"
+    }
+  }
+}

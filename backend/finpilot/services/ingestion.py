@@ -8,7 +8,7 @@ Each ingested record is classified by the GST agent before being persisted.
 import logging
 
 from finpilot.models.transaction import Transaction
-from finpilot.parsers.pdf_parser import parse_pdf
+from finpilot.services.parsers.pdf_parser import parse_pdf
 from finpilot.db.mongo import save_transaction
 from finpilot.agents.gst_agent import classify_transaction
 
