@@ -10,7 +10,6 @@ from uuid import uuid4
 from typing import Any
 
 from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
 from fastapi import BackgroundTasks
 
 from finpilot import config
@@ -212,6 +211,34 @@ ITR1_MAJORITY_DEFAULT_VALUES: dict[str, Any] = {
     "VERIFICATION.capacity": "Self",
 }
 
+ITR1_PROFILE_PATH_TO_FIELD_ID: dict[str, str] = {
+    profile_path: field_id
+    for field_id, profile_path in ITR1_FIELD_TO_PROFILE_PATH.items()
+}
+
+ITR1_REQUIRED_FIELD_OPTIONS: dict[str, list[str]] = {
+    "A15": ["139(1)", "139(4)", "139(5)", "139(9)"],
+    "A17": ["Government", "PSU", "Pensioner", "Other"],
+    "A20": ["Yes", "No"],
+    "PART_A_GENERAL_INFORMATION.A20": ["Yes", "No"],
+    "PART_A_GENERAL_INFORMATION.A21.general": ["Yes", "No"],
+    "PART_A_GENERAL_INFORMATION.A22.general": ["Yes", "No"],
+    "PART_E_OTHER_INFORMATION.bank_details.account_type": ["Savings", "Current"],
+    "PART_E_OTHER_INFORMATION.bank_details.refund_flag": ["Yes", "No"],
+    "VERIFICATION.capacity": ["Self", "Representative Assessee", "TRP"],
+}
+
+ITR1_SECTION_REASONS: dict[str, str] = {
+    "PART_A_GENERAL_INFORMATION": "Needed to identify the taxpayer and validate legal filing details.",
+    "PART_B_GROSS_TOTAL_INCOME": "Used to compute gross income under each applicable income head.",
+    "PART_C_DEDUCTIONS": "Used to apply eligible deductions and reduce taxable income correctly.",
+    "PART_D_TAX_COMPUTATION": "Determines tax payable, interest, fee, and eligible refund amount.",
+    "PART_E_OTHER_INFORMATION": "Required for refund routing and validating your receiving bank account.",
+    "SCHEDULE_IT": "Captures self-paid tax challan details to grant payment credit.",
+    "SCHEDULE_TDS": "Matches deducted tax credits against income and claimed TDS amounts.",
+    "VERIFICATION": "Legally confirms declaration details and authorized person for this return.",
+}
+
 
 def _now_iso() -> str:
     return datetime.now().isoformat()
@@ -275,87 +302,6 @@ def _resolve_transaction_date(
 
 def _next_financial_year_end_from_date(transaction_date: datetime) -> datetime:
     return datetime(transaction_date.year if transaction_date.month <= 3 else transaction_date.year + 1, 3, 31)
-
-
-def _transaction_deadline_due_date(transaction_date: datetime) -> datetime:
-    return transaction_date + relativedelta(months=+6)
-
-
-def _sync_transaction_deadlines(user_id: str) -> dict[str, int]:
-    txns = list(
-        _get_db()["transactions"].find(
-            {"user_id": user_id},
-            {
-                "_id": 1,
-                "amount": 1,
-                "type": 1,
-                "party": 1,
-                "date": 1,
-                "source": 1,
-                "category": 1,
-                "sub_category": 1,
-            },
-        )
-    )
-
-    created = 0
-    updated = 0
-
-    for txn in txns:
-        txn_id = str(txn.get("_id") or "").strip()
-        if not txn_id:
-            continue
-
-        txn_date = _parse_datetime(str(txn.get("date") or ""))
-        due_date = _transaction_deadline_due_date(txn_date)
-        now_iso = _now_iso()
-        deadline_id = f"transaction-{txn_id}"
-        existing = _deadlines_collection().find_one(
-            {"deadline_id": deadline_id, "user_id": user_id},
-            {"_id": 0, "status": 1, "submitted": 1, "created_at": 1},
-        )
-
-        status = existing.get("status") if isinstance(existing, dict) and existing.get("status") else "pending"
-        submitted = bool(existing.get("submitted")) if isinstance(existing, dict) else False
-
-        doc = {
-            "deadline_id": deadline_id,
-            "user_id": user_id,
-            "type": "transaction_review",
-            "title": f"Transaction review - {txn.get('party') or 'Unknown party'}",
-            "due_date": due_date.date().isoformat(),
-            "status": status,
-            "submitted": submitted,
-            "meta": {
-                "source": "transaction_auto_deadline",
-                "transaction_id": txn_id,
-                "transaction_date": txn_date.date().isoformat(),
-                "transaction_month": txn_date.strftime("%B %Y"),
-                "deadline_rule": "6_months_from_transaction_date",
-                "amount": float(txn.get("amount") or 0.0),
-                "transaction_type": str(txn.get("type") or "").lower() or "unknown",
-                "party": txn.get("party") or "Unknown",
-                "category": txn.get("category") or "Uncategorized",
-                "sub_category": txn.get("sub_category") or "Uncategorized",
-                "txn_source": txn.get("source") or "unknown",
-            },
-            "updated_at": now_iso,
-        }
-
-        result = _deadlines_collection().update_one(
-            {"deadline_id": deadline_id, "user_id": user_id},
-            {
-                "$set": doc,
-                "$setOnInsert": {"created_at": now_iso},
-            },
-            upsert=True,
-        )
-        if result.upserted_id is not None:
-            created += 1
-        elif result.modified_count > 0:
-            updated += 1
-
-    return {"created": created, "updated": updated}
 
 
 def _infer_invoice_financial_year_end(transaction_date: datetime) -> datetime:
@@ -479,12 +425,10 @@ def _schedule_invoice_deadline(
         upsert=True,
     )
 
-    queued_new = scan_deadlines_once(user_id=user_id, force_queue=True)
-    sent_now = dispatch_queued_notifications(limit=50, user_id=user_id)
+    queued_new = scan_deadlines_once(user_id=user_id)
     return {
         "deadline": deadline_doc,
         "queued_new": queued_new,
-        "sent_now": sent_now,
     }
 
 
@@ -591,6 +535,66 @@ def _majority_default_for_field(field_id: str, field_name: str, values: dict[str
         return "No"
 
     return None
+
+
+def _resolve_required_input_options(field_id: str, field_path: str, field_name: str, prompt: str) -> list[str]:
+    candidates = [field_id, field_path]
+    if field_path and "." in field_path:
+        candidates.append(field_path.split(".")[-1])
+
+    for candidate in candidates:
+        normalized_candidate = _safe_text(candidate)
+        if not normalized_candidate:
+            continue
+        options = ITR1_REQUIRED_FIELD_OPTIONS.get(normalized_candidate)
+        if options:
+            return options
+
+    text = f"{_safe_text(field_name)} {_safe_text(prompt)}".lower()
+    if any(token in text for token in ("yes/no", "yes or no", "selected for refund", "representative assessee", "opting out")):
+        return ["Yes", "No"]
+
+    return []
+
+
+def _resolve_required_input_reason(section: str, field_name: str, field_id: str) -> str:
+    normalized_section = _safe_text(section)
+    section_reason = ITR1_SECTION_REASONS.get(normalized_section)
+    if section_reason:
+        return section_reason
+
+    normalized_name = _safe_text(field_name).lower()
+    normalized_id = _safe_text(field_id).lower()
+    if "pan" in normalized_name or "pan" in normalized_id:
+        return "Used to uniquely identify taxpayer records and match return data."
+    if "aadhaar" in normalized_name:
+        return "Supports identity validation and cross-checks for filing compliance needs."
+    if "email" in normalized_name or "mobile" in normalized_name or "contact" in normalized_name:
+        return "Used for notices, OTP verification, and official filing communication."
+
+    return "Required to complete the return accurately and avoid filing mismatches."
+
+
+def _enrich_required_input_item(item: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(item)
+    field_id = _safe_text(enriched.get("field_id"))
+    field_name = _safe_text(enriched.get("field_name"))
+    field_path = _safe_text(enriched.get("path"))
+    section = _safe_text(enriched.get("section"))
+    prompt = _safe_text(enriched.get("prompt")) or f"Please provide {field_name or field_id or 'this value'}"
+    options = _resolve_required_input_options(field_id, field_path, field_name, prompt)
+
+    enriched["field_id"] = field_id or enriched.get("field_id")
+    enriched["field_name"] = field_name or enriched.get("field_name")
+    enriched["prompt"] = prompt
+    enriched["reason"] = _resolve_required_input_reason(section, field_name, field_id)
+
+    if options:
+        enriched["options"] = options
+    else:
+        enriched.pop("options", None)
+
+    return enriched
 
 
 def _normalize_report_name(report_name: Any) -> str:
@@ -1571,17 +1575,23 @@ def _task_report_extract_fields(user_id: str, payload: dict[str, Any]) -> dict[s
     normalized_payload = {**payload, "report_name": report_name}
     extracted_fields = _extract_report_fields(normalized_payload)
     filled_entities = _prefill_report_fields_from_profile(user_id, extracted_fields)
-    missing_fields = [
-        {
-            "field_id": field.get("field_id"),
-            "field_name": field.get("field_name"),
-            "prompt": field.get("prompt") or f"Please provide {field.get('field_name')}",
-            "source": "profile_or_manual",
-            "section": field.get("section"),
-        }
-        for field in filled_entities
-        if _is_empty_field_value(field.get("value"))
-    ]
+    missing_fields: list[dict[str, Any]] = []
+    for field in filled_entities:
+        if not _is_empty_field_value(field.get("value")):
+            continue
+
+        missing_fields.append(
+            _enrich_required_input_item(
+                {
+                    "field_id": field.get("field_id"),
+                    "field_name": field.get("field_name"),
+                    "prompt": field.get("prompt") or f"Please provide {field.get('field_name')}",
+                    "source": "profile_or_manual",
+                    "section": field.get("section"),
+                    "path": field.get("path"),
+                }
+            )
+        )
 
     return {
         "report_name": report_name,
@@ -1629,13 +1639,18 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
 
         if _is_empty_field_value(selected_value):
             normalized_field["status"] = "missing"
-            missing_fields.append({
-                "field_id": normalized_field["field_id"],
-                "field_name": normalized_field["field_name"],
-                "prompt": normalized_field["prompt"],
-                "source": "profile_or_manual",
-                "section": normalized_field.get("section"),
-            })
+            missing_fields.append(
+                _enrich_required_input_item(
+                    {
+                        "field_id": normalized_field["field_id"],
+                        "field_name": normalized_field["field_name"],
+                        "prompt": normalized_field["prompt"],
+                        "source": "profile_or_manual",
+                        "section": normalized_field.get("section"),
+                        "path": normalized_field.get("path"),
+                    }
+                )
+            )
         else:
             normalized_field["value"] = selected_value
 
@@ -1650,6 +1665,38 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
         {"_id": 0},
     ) or {}
     profile_missing_required = _missing_required_profile_fields(_decrypt_profile_doc(profile_doc))
+    itr1_profile_missing_required = [
+        field_path
+        for field_path in profile_missing_required
+        if field_path in ITR1_PROFILE_PATH_TO_FIELD_ID
+    ]
+
+    field_value_by_id = {
+        _safe_text(field.get("field_id")): field.get("value")
+        for field in filled
+        if _safe_text(field.get("field_id"))
+    }
+    field_value_by_name = {
+        _normalize_key(_safe_text(field.get("field_name"))): field.get("value")
+        for field in filled
+        if _safe_text(field.get("field_name"))
+    }
+
+    field_name_by_id = {
+        _safe_text(field.get("field_id")): _safe_text(field.get("field_name"))
+        for field in filled
+        if _safe_text(field.get("field_id"))
+    }
+    section_by_id = {
+        _safe_text(field.get("field_id")): _safe_text(field.get("section"))
+        for field in filled
+        if _safe_text(field.get("field_id"))
+    }
+    path_by_id = {
+        _safe_text(field.get("field_id")): _safe_text(field.get("path"))
+        for field in filled
+        if _safe_text(field.get("field_id"))
+    }
 
     required_user_inputs: list[dict[str, Any]] = []
     seen_required_ids: set[str] = set()
@@ -1662,18 +1709,35 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
             seen_required_ids.add(req_id)
         required_user_inputs.append(item)
 
-    for field_path in profile_missing_required:
-        readable_name = field_path.replace(".", " ").replace("_", " ")
-        if field_path in seen_required_ids:
+    for field_path in itr1_profile_missing_required:
+        mapped_field_id = _safe_text(ITR1_PROFILE_PATH_TO_FIELD_ID.get(field_path, field_path))
+        if mapped_field_id in seen_required_ids:
             continue
-        seen_required_ids.add(field_path)
+
+        if not _is_empty_field_value(field_value_by_id.get(mapped_field_id)):
+            continue
+
+        resolved_name = field_name_by_id.get(mapped_field_id)
+        if not resolved_name:
+            resolved_name = mapped_field_id.replace(".", " ").replace("_", " ")
+
+        resolved_name_key = _normalize_key(resolved_name)
+        if resolved_name_key and not _is_empty_field_value(field_value_by_name.get(resolved_name_key)):
+            continue
+
+        seen_required_ids.add(mapped_field_id)
+
         required_user_inputs.append(
-            {
-                "field_id": field_path,
-                "field_name": readable_name,
-                "prompt": f"Update profile with {readable_name}",
-                "source": "profile_required",
-            }
+            _enrich_required_input_item(
+                {
+                    "field_id": mapped_field_id,
+                    "field_name": resolved_name,
+                    "prompt": f"Please provide {resolved_name}",
+                    "source": "profile_required",
+                    "section": section_by_id.get(mapped_field_id),
+                    "path": path_by_id.get(mapped_field_id) or mapped_field_id,
+                }
+            )
         )
 
     report_id = payload.get("report_id") or str(uuid4())
@@ -1686,7 +1750,7 @@ def _task_report_generate(user_id: str, payload: dict[str, Any]) -> dict[str, An
         "fields": filled,
         "missing_fields": missing_fields,
         "required_user_inputs": required_user_inputs,
-        "profile_missing_required": profile_missing_required,
+        "profile_missing_required": itr1_profile_missing_required,
         "created_at": existing_report.get("created_at") or _now_iso(),
         "updated_at": _now_iso(),
         "schema_version": "itr1-v1",
@@ -1912,67 +1976,12 @@ def _task_deadline_add(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "updated_at": _now_iso(),
     }
     _deadlines_collection().update_one({"deadline_id": deadline_id}, {"$set": doc}, upsert=True)
-
-    queued_new = scan_deadlines_once(user_id=user_id, force_queue=True)
-    sent_now = dispatch_queued_notifications(limit=50, user_id=user_id)
-    still_queued = _get_db()["notifications"].count_documents({"user_id": user_id, "status": "queued"})
-
-    return {
-        "saved": True,
-        "deadline": doc,
-        "notification": {
-            "queued_new": queued_new,
-            "sent": sent_now,
-            "still_queued": still_queued,
-        },
-    }
+    return {"saved": True, "deadline": doc}
 
 
 def _task_deadline_get(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    sync_summary = _sync_transaction_deadlines(user_id)
     items = list(_deadlines_collection().find({"user_id": user_id}, {"_id": 0}).sort("due_date", 1))
-
-    deadline_ids = [item.get("deadline_id") for item in items if item.get("deadline_id")]
-    notification_index: dict[str, dict[str, Any]] = {}
-    if deadline_ids:
-        notifications = list(
-            _get_db()["notifications"].find(
-                {
-                    "user_id": user_id,
-                    "deadline_id": {"$in": deadline_ids},
-                },
-                {
-                    "_id": 0,
-                    "deadline_id": 1,
-                    "status": 1,
-                    "sent_at": 1,
-                    "updated_at": 1,
-                    "error": 1,
-                },
-            ).sort("updated_at", -1)
-        )
-
-        for n in notifications:
-            d_id = n.get("deadline_id")
-            if d_id and d_id not in notification_index:
-                notification_index[d_id] = n
-
-    for item in items:
-        d_id = item.get("deadline_id")
-        notif = notification_index.get(d_id)
-        meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
-        if notif:
-            meta["reminder_status"] = notif.get("status")
-            meta["reminder_sent_at"] = notif.get("sent_at")
-            if notif.get("error"):
-                meta["reminder_error"] = notif.get("error")
-        item["meta"] = meta
-
-    return {
-        "deadlines": items,
-        "count": len(items),
-        "transaction_deadline_sync": sync_summary,
-    }
+    return {"deadlines": items, "count": len(items)}
 
 
 def _task_deadline_delete(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:

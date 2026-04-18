@@ -18,20 +18,7 @@ export function Topbar() {
         backdropFilter: 'blur(10px)',
       }}
     >
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1 }}>
-        <input
-          type="text"
-          placeholder="Search..."
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'var(--bg3)',
-            border: '1px solid var(--border)',
-            borderRadius: '0.5rem',
-            color: 'var(--text)',
-            width: '250px',
-          }}
-        />
-      </div>
+      <div style={{ flex: 1 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <button

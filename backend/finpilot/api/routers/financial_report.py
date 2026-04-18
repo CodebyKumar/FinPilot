@@ -532,9 +532,10 @@ def download_financial_report_route(user_id: str, format: str = Query("html")):
             "user_id": user_id,
         }
 
+    backend_root = Path(__file__).resolve().parents[3]
     template_candidates = [
-        Path(__file__).resolve().parents[4] / "FINANCIAL-REPORT-TEMPLATE.html",
-        Path(__file__).resolve().parents[3] / "FINANCIAL-REPORT-TEMPLATE.html",
+        backend_root / "FINANCIAL-REPORT-TEMPLATE.html",
+        backend_root / "templates" / "FINANCIAL-REPORT-TEMPLATE.html",
     ]
 
     template_path = next((p for p in template_candidates if p.exists()), None)

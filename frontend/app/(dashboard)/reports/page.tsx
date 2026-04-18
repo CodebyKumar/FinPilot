@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
 
-const REPORT_TYPES = ['ITR-1'] as const;
+const REPORT_TYPES = ['ITR-1', 'ITR-2', 'ITR-3'] as const;
+
+const BACKEND_SUPPORTED_REPORT_TYPES = new Set<ReportType>(['ITR-1']);
 
 const REPORT_TYPE_DETAILS: Record<ReportType, {
   subtitle: string;
@@ -22,6 +24,18 @@ const REPORT_TYPE_DETAILS: Record<ReportType, {
     category: 'Individual Return',
     eligibility: 'Resident salaried taxpayers',
     coverage: 'Salary/pension, one house property, and other income sources',
+  },
+  'ITR-2': {
+    subtitle: 'Income Tax Return',
+    category: 'Individual Return',
+    eligibility: 'Individuals/HUFs without business income',
+    coverage: 'Capital gains, multiple house properties, and foreign assets/income',
+  },
+  'ITR-3': {
+    subtitle: 'Income Tax Return',
+    category: 'Business/Professional Return',
+    eligibility: 'Individuals/HUFs with business or professional income',
+    coverage: 'Business/professional income, partner income, and other heads',
   },
 };
 
@@ -43,6 +57,9 @@ interface ReportRequiredInputItem {
   prompt?: string;
   source?: string;
   section?: string;
+  path?: string;
+  reason?: string;
+  options?: string[];
 }
 
 interface ReportAnalysisResult {
@@ -92,6 +109,8 @@ export default function ReportsPage() {
   const [reportState, setReportState] = useState<ReportState>(EMPTY_REPORT_STATE);
 
   const userId = 'default';
+
+  const isReportTypeSupported = (reportType: ReportType) => BACKEND_SUPPORTED_REPORT_TYPES.has(reportType);
 
   const setMessage = (message: string, type: 'success' | 'error' | 'info') => {
     setSummaryMessage(message);
@@ -168,6 +187,10 @@ export default function ReportsPage() {
   const getSelectedReportTypeOrNotify = (): ReportType | null => {
     if (!selectedReportType) {
       setMessage('Select a report type from the report card first.', 'info');
+      return null;
+    }
+    if (!isReportTypeSupported(selectedReportType)) {
+      setMessage(`${selectedReportType} will be available soon. Please use ITR-1 for now.`, 'info');
       return null;
     }
     return selectedReportType;
@@ -319,6 +342,7 @@ export default function ReportsPage() {
   const activeValidation = reportState.validation;
   const canViewReport = Boolean(reportState.reportId);
   const hasSelectedReportType = Boolean(selectedReportType);
+  const canRunSelectedReport = Boolean(selectedReportType && isReportTypeSupported(selectedReportType));
   const rawPreviewFields = reportState.filledEntities.length > 0
     ? reportState.filledEntities
     : reportState.fields.length > 0
@@ -332,14 +356,114 @@ export default function ReportsPage() {
   );
 
   const previewFields = isSelectedReportMatching ? rawPreviewFields : [];
-  const visibleRequiredUserInputs = isSelectedReportMatching ? reportState.requiredUserInputs : [];
+  const isKnownRequiredValue = (value: unknown) => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized !== '' && !['-', '--', '---', 'na', 'n/a', 'none', 'null'].includes(normalized);
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === 'object') {
+      return Object.keys(value as Record<string, unknown>).length > 0;
+    }
+    return true;
+  };
+
+  const normalizeFieldNameKey = (value?: string) => {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+
+  const hasKnownRequiredInputValue = (item: ReportRequiredInputItem) => {
+    const allKnownSources = [reportState.fields, reportState.filledEntities, reportState.prefillFields];
+
+    if (item.field_id) {
+      for (const source of allKnownSources) {
+        const match = source.find((field) => field.field_id === item.field_id);
+        if (match && isKnownRequiredValue(match.value)) {
+          return true;
+        }
+      }
+    }
+
+    const requiredNameKey = normalizeFieldNameKey(item.field_name);
+    if (requiredNameKey) {
+      for (const source of allKnownSources) {
+        const match = source.find((field) => normalizeFieldNameKey(field.field_name) === requiredNameKey);
+        if (match && isKnownRequiredValue(match.value)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const visibleRequiredUserInputs = useMemo(() => {
+    if (!isSelectedReportMatching) {
+      return [];
+    }
+
+    return reportState.requiredUserInputs.filter((item) => {
+      if (String(item.field_id || '').startsWith('business_info.')) {
+        return false;
+      }
+      return !hasKnownRequiredInputValue(item);
+    });
+  }, [
+    isSelectedReportMatching,
+    reportState.requiredUserInputs,
+    reportState.fields,
+    reportState.filledEntities,
+    reportState.prefillFields,
+  ]);
   const emptyFieldMessage = !hasSelectedReportType
     ? 'Select a report type to view fields.'
     : !isSelectedReportMatching
       ? `No fields available for ${selectedReportType}.`
       : 'No fields available.';
 
+  const getRequiredInputSharedKey = (item: ReportRequiredInputItem) => {
+    const sectionKey = String(item.section || item.source || 'general')
+      .replace(/[._]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const labelKey = String(item.field_name || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+    if (labelKey) {
+      return `${sectionKey}::${labelKey}`;
+    }
+
+    const fieldIdKey = String(item.field_id || '').trim().toLowerCase();
+    return fieldIdKey;
+  };
+
+  const visibleRequiredUserInputEntries = useMemo(() => {
+    const deduped: Array<{ item: ReportRequiredInputItem; originalIndex: number }> = [];
+    const seen = new Set<string>();
+
+    visibleRequiredUserInputs.forEach((item, index) => {
+      const dedupeKey = getRequiredInputSharedKey(item) || `${item.field_id || item.field_name || index}`;
+      if (seen.has(dedupeKey)) {
+        return;
+      }
+      seen.add(dedupeKey);
+      deduped.push({ item, originalIndex: index });
+    });
+
+    return deduped;
+  }, [visibleRequiredUserInputs]);
+
   const buildRequiredInputKey = (item: ReportRequiredInputItem, index: number) => {
+    const sharedKey = getRequiredInputSharedKey(item);
+    if (sharedKey) {
+      return sharedKey;
+    }
     return item.field_id || item.field_name || `required-${index}`;
   };
 
@@ -353,6 +477,16 @@ export default function ReportsPage() {
   };
 
   const parseSingleSelectOptions = (item: ReportRequiredInputItem): string[] => {
+    const explicitOptions = Array.isArray(item.options)
+      ? item.options
+        .map((option) => String(option || '').trim())
+        .filter(Boolean)
+      : [];
+
+    if (explicitOptions.length >= 2) {
+      return Array.from(new Set(explicitOptions));
+    }
+
     const promptText = String(item.prompt || '');
     if (!promptText) return [];
 
@@ -368,7 +502,16 @@ export default function ReportsPage() {
       return Array.from(new Set(numberedOptions));
     }
 
-    const optionText = normalizedPrompt.match(/(?:select|choose|options?|answer)\s*[:\-]\s*(.+)$/i)?.[1] || normalizedPrompt;
+    if (/(?:^|\b)yes\s*(?:\/|or)\s*no(?:\b|$)/i.test(normalizedPrompt)) {
+      return ['Yes', 'No'];
+    }
+
+    const optionMatch = normalizedPrompt.match(/(?:select|choose|options?|answer)\s*[:\-]\s*(.+)$/i);
+    if (!optionMatch?.[1]) {
+      return [];
+    }
+
+    const optionText = optionMatch[1];
     const splitOptions = optionText
       .split(/\s*(?:\/|\||,)\s*/)
       .map((value) => value.trim())
@@ -381,11 +524,26 @@ export default function ReportsPage() {
     return [];
   };
 
-  const shouldSpanRequiredInputCard = (item: ReportRequiredInputItem) => {
-    const promptText = String(item.prompt || '');
-    const fieldText = String(item.field_name || item.field_id || '');
-    const combinedLength = `${fieldText} ${promptText}`.trim().length;
-    return combinedLength > 120 || promptText.includes('\n');
+  const getRequiredInputPrompt = (item: ReportRequiredInputItem, label: string) => {
+    const rawPrompt = String(item.prompt || '')
+      .replace(/\r\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!rawPrompt) return '';
+
+    const cleanedPrompt = rawPrompt
+      .replace(/^please\s+provide\s+/i, '')
+      .replace(/^update\s+profile\s+with\s+/i, '')
+      .trim();
+
+    const normalizedPrompt = cleanedPrompt.replace(/[.:]+$/g, '').trim().toLowerCase();
+    const normalizedLabel = String(label).replace(/[.:]+$/g, '').trim().toLowerCase();
+
+    if (!normalizedPrompt || normalizedPrompt === normalizedLabel) {
+      return '';
+    }
+
+    return cleanedPrompt;
   };
 
   const requiredInputGroups = useMemo(() => {
@@ -395,20 +553,20 @@ export default function ReportsPage() {
     }> = [];
     const groupIndexMap = new Map<string, number>();
 
-    visibleRequiredUserInputs.forEach((item, index) => {
+    visibleRequiredUserInputEntries.forEach(({ item, originalIndex }) => {
       const title = formatRequiredGroupTitle(item);
       const foundIndex = groupIndexMap.get(title);
 
       if (foundIndex === undefined) {
         groupIndexMap.set(title, groups.length);
-        groups.push({ title, items: [{ item, originalIndex: index }] });
+        groups.push({ title, items: [{ item, originalIndex }] });
       } else {
-        groups[foundIndex].items.push({ item, originalIndex: index });
+        groups[foundIndex].items.push({ item, originalIndex });
       }
     });
 
     return groups;
-  }, [visibleRequiredUserInputs]);
+  }, [visibleRequiredUserInputEntries]);
 
   const inferInputType = (label: string) => {
     const text = label.toLowerCase();
@@ -416,6 +574,39 @@ export default function ReportsPage() {
     if (text.includes('date') || text.includes('dob')) return 'date';
     if (text.includes('mobile') || text.includes('phone') || text.includes('contact')) return 'tel';
     return 'text';
+  };
+
+  const formatFieldValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') {
+      return 'No value';
+    }
+
+    if (Array.isArray(value)) {
+      const compact = value.map((item) => String(item)).filter(Boolean).join(', ').trim();
+      return compact || 'No value';
+    }
+
+    if (typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+        .map(([key, entryValue]) => {
+          if (entryValue === null || entryValue === undefined || entryValue === '') {
+            return null;
+          }
+          const readableKey = key.replace(/[._]+/g, ' ').trim();
+          return `${readableKey}: ${String(entryValue)}`;
+        })
+        .filter((item): item is string => Boolean(item));
+
+      return entries.length ? entries.join(' | ') : 'No value';
+    }
+
+    return String(value);
+  };
+
+  const getTenWordDescription = (isPending: boolean) => {
+    return isPending
+      ? 'Provide this value to complete filing and pass return validation.'
+      : 'Recorded value from profile or inputs used for tax filing.';
   };
 
   const getExistingFieldValue = (fieldId?: string, fieldName?: string) => {
@@ -459,22 +650,25 @@ export default function ReportsPage() {
     setRequiredInputDrafts((prev) => {
       const next = { ...prev };
       const activeKeys = new Set<string>();
+      let hasChanges = false;
 
       visibleRequiredUserInputs.forEach((item, index) => {
         const key = buildRequiredInputKey(item, index);
         activeKeys.add(key);
         if (next[key] === undefined) {
           next[key] = getExistingFieldValue(item.field_id, item.field_name);
+          hasChanges = true;
         }
       });
 
       Object.keys(next).forEach((key) => {
         if (!activeKeys.has(key)) {
           delete next[key];
+          hasChanges = true;
         }
       });
 
-      return next;
+      return hasChanges ? next : prev;
     });
   }, [visibleRequiredUserInputs, reportState.fields]);
 
@@ -570,8 +764,8 @@ export default function ReportsPage() {
               <span>{selectedFile ? selectedFile.name : 'Attach File'}</span>
             </span>
           </Button>
-          <Button variant="primary" onClick={runGenerateNewReport} disabled={isBusy || !hasSelectedReportType}>
-            {isBusy ? 'Working...' : hasSelectedReportType ? '+ Generate New Report' : 'Select Report Type'}
+          <Button variant="primary" onClick={runGenerateNewReport} disabled={isBusy || !canRunSelectedReport}>
+            {isBusy ? 'Working...' : canRunSelectedReport ? '+ Generate New Report' : 'Select Supported Report'}
           </Button>
         </div>
       }
@@ -609,16 +803,24 @@ export default function ReportsPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <Card title="Active Report" subtitle="Current pipeline control">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '110px minmax(0, 1fr)',
+                alignItems: 'center',
+                columnGap: '0.6rem',
+                rowGap: '0.45rem',
+              }}
+            >
               <span style={{ color: 'var(--muted)' }}>Selected</span>
-              <Badge variant={hasSelectedReportType ? 'info' : 'warning'}>{selectedReportType || 'None'}</Badge>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div style={{ justifySelf: 'start' }}>
+                <Badge variant={hasSelectedReportType ? 'info' : 'warning'}>{selectedReportType || 'None'}</Badge>
+              </div>
               <span style={{ color: 'var(--muted)' }}>Report ID</span>
               <span style={{ color: 'var(--text)', fontWeight: 600 }}>{reportState.reportId || 'Not generated yet'}</span>
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
               <Button
                 variant="primary"
                 onClick={() => {
@@ -626,7 +828,7 @@ export default function ReportsPage() {
                   if (!reportType) return;
                   void generateReport(reportType);
                 }}
-                disabled={isBusy || !hasSelectedReportType}
+                disabled={isBusy || !canRunSelectedReport}
               >
                 Generate
               </Button>
@@ -637,7 +839,7 @@ export default function ReportsPage() {
                   if (!reportType) return;
                   void validateReport(reportType);
                 }}
-                disabled={isBusy || !hasSelectedReportType}
+                disabled={isBusy || !canRunSelectedReport}
               >
                 Validate
               </Button>
@@ -660,75 +862,86 @@ export default function ReportsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-        {REPORT_TYPES.map((reportType) => (
-          <Card key={reportType} title={reportType} subtitle={REPORT_TYPE_DETAILS[reportType].subtitle}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div
-                style={{
-                  padding: '1rem',
-                  background: selectedReportType === reportType
-                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(16, 185, 129, 0.04) 100%)'
-                    : 'var(--bg3)',
-                  borderRadius: '0.5rem',
-                  border: selectedReportType === reportType
-                    ? '1px solid rgba(16, 185, 129, 0.45)'
-                    : '1px solid var(--border)',
-                  boxShadow: selectedReportType === reportType
-                    ? '0 8px 20px rgba(16, 185, 129, 0.12)'
-                    : 'none',
-                  display: 'grid',
-                  gap: '0.55rem',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <strong style={{ fontSize: '0.95rem' }}>Return Profile</strong>
-                  <Badge variant={selectedReportType === reportType ? 'success' : 'info'}>
-                    {selectedReportType === reportType ? 'Selected' : 'Available'}
-                  </Badge>
+        {REPORT_TYPES.map((reportType) => {
+          const isSupported = isReportTypeSupported(reportType);
+          return (
+            <Card key={reportType} title={reportType} subtitle={REPORT_TYPE_DETAILS[reportType].subtitle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div
+                  style={{
+                    padding: '1rem',
+                    background: selectedReportType === reportType
+                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(16, 185, 129, 0.04) 100%)'
+                      : 'var(--bg3)',
+                    borderRadius: '0.5rem',
+                    border: selectedReportType === reportType
+                      ? '1px solid rgba(16, 185, 129, 0.45)'
+                      : '1px solid var(--border)',
+                    boxShadow: selectedReportType === reportType
+                      ? '0 8px 20px rgba(16, 185, 129, 0.12)'
+                      : 'none',
+                    display: 'grid',
+                    gap: '0.55rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <strong style={{ fontSize: '0.95rem' }}>Return Profile</strong>
+                    {selectedReportType === reportType ? (
+                      <Badge variant="success">Selected</Badge>
+                    ) : isSupported ? (
+                      <Badge variant="info">Available</Badge>
+                    ) : (
+                      <Badge variant="warning">Coming Soon</Badge>
+                    )}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
+                    <strong>Category:</strong> {REPORT_TYPE_DETAILS[reportType].category}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
+                    <strong>Eligibility:</strong> {REPORT_TYPE_DETAILS[reportType].eligibility}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: '0.86rem' }}>
+                    <strong>Coverage:</strong> {REPORT_TYPE_DETAILS[reportType].coverage}
+                  </div>
                 </div>
-                <div style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
-                  <strong>Category:</strong> {REPORT_TYPE_DETAILS[reportType].category}
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
-                  <strong>Eligibility:</strong> {REPORT_TYPE_DETAILS[reportType].eligibility}
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: '0.86rem' }}>
-                  <strong>Coverage:</strong> {REPORT_TYPE_DETAILS[reportType].coverage}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {selectedReportType === reportType ? (
-                  <>
-                    <Button variant="secondary" disabled>
-                      {reportType} Selected
-                    </Button>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {selectedReportType === reportType ? (
+                    <>
+                      <Button variant="secondary" disabled>
+                        {reportType} Selected
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setSelectedReportType(null);
+                          setMessage(`${reportType} unselected. Select a report type to continue.`, 'info');
+                        }}
+                        disabled={isBusy}
+                      >
+                        Unselect
+                      </Button>
+                    </>
+                  ) : isSupported ? (
                     <Button
-                      variant="secondary"
+                      variant="primary"
                       onClick={() => {
-                        setSelectedReportType(null);
-                        setMessage(`${reportType} unselected. Select a report type to continue.`, 'info');
+                        setSelectedReportType(reportType);
+                        setMessage(`${reportType} selected. Use Active Report controls above.`, 'success');
                       }}
                       disabled={isBusy}
                     >
-                      Unselect
+                      Select {reportType}
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="primary"
-                    onClick={() => {
-                      setSelectedReportType(reportType);
-                      setMessage(`${reportType} selected. Use Active Report controls above.`, 'success');
-                    }}
-                    disabled={isBusy}
-                  >
-                    Select {reportType}
-                  </Button>
-                )}
+                  ) : (
+                    <Button variant="secondary" disabled>
+                      {reportType} Coming Soon
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {isPreviewOpen && reportState.reportId && (
@@ -749,41 +962,93 @@ export default function ReportsPage() {
               </Button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
               <div style={{ padding: '1rem', background: 'var(--bg3)', borderRadius: '0.5rem' }}>
                 <h4 style={{ margin: '0 0 0.75rem 0' }}>Filled Fields</h4>
                 {previewFields.length === 0 ? (
                   <p style={{ margin: 0, color: 'var(--muted)' }}>{emptyFieldMessage}</p>
                 ) : (
-                  <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    {previewFields.map((field, index) => (
-                      <div key={`${field.field_id || index}`} style={{ padding: '0.65rem', background: 'var(--bg2)', borderRadius: '0.5rem' }}>
-                        <div style={{ fontWeight: 600 }}>{field.field_name || field.field_id || `Field ${index + 1}`}</div>
-                        <div style={{ marginTop: '0.2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                          Identifier: {field.field_id || `Field-${index + 1}`}
+                  <div style={{ display: 'grid', gap: '0.55rem' }}>
+                    {previewFields.map((field, index) => {
+                      const fieldLabel = field.field_name || field.field_id || `Field ${index + 1}`;
+                      const fieldIdentifier = field.field_id || `Field-${index + 1}`;
+                      const displayValue = formatFieldValue(field.value);
+                      const isPending = field.status === 'missing' || displayValue === 'No value';
+
+                      return (
+                        <div
+                          key={`${field.field_id || index}`}
+                          style={{
+                            padding: '0.65rem',
+                            background: 'var(--bg2)',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border)',
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                            <div style={{ fontWeight: 600 }}>{fieldLabel}</div>
+                            <div style={{ marginTop: '0.2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
+                              Identifier: {fieldIdentifier}
+                            </div>
+                            <div style={{ marginTop: '0.2rem', color: 'var(--muted)', fontSize: '0.78rem' }}>
+                              {getTenWordDescription(isPending)}
+                            </div>
+                          </div>
+                          <div
+                            title={displayValue}
+                            style={{
+                              flex: '1 1 220px',
+                              minWidth: 0,
+                              color: displayValue === 'No value' ? 'var(--muted)' : 'var(--text)',
+                              fontSize: '0.9rem',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {displayValue}
+                          </div>
+                          <Badge variant={isPending ? 'warning' : 'success'}>{isPending ? 'Pending' : 'Filled'}</Badge>
                         </div>
-                        <div style={{ color: 'var(--muted)', marginTop: '0.25rem' }}>
-                          {field.value === null || field.value === undefined || field.value === '' ? '—' : String(field.value)}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               <div style={{ padding: '1rem', background: 'var(--bg3)', borderRadius: '0.5rem' }}>
                 <h4 style={{ margin: '0 0 0.75rem 0' }}>Missing / Required Inputs</h4>
-                {visibleRequiredUserInputs.length === 0 ? (
+                {visibleRequiredUserInputEntries.length === 0 ? (
                   <p style={{ margin: 0, color: 'var(--muted)' }}>Nothing pending.</p>
                 ) : (
-                  <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                    {visibleRequiredUserInputs.map((item, index) => (
-                      <li key={`${item.field_id || index}`} style={{ marginBottom: '0.45rem' }}>
-                        <strong>{item.field_name || item.field_id || `Input ${index + 1}`}</strong>
-                        <div style={{ color: 'var(--muted)' }}>{item.prompt || item.source || 'Required input'}</div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div style={{ display: 'grid', gap: '0.4rem', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+                    {visibleRequiredUserInputEntries.map(({ item }, index) => {
+                      const label = item.field_name || item.field_id || `Input ${index + 1}`;
+                      const prompt = getRequiredInputPrompt(item, label);
+
+                      return (
+                        <div
+                          key={`${item.field_id || index}`}
+                          style={{
+                            padding: '0.55rem',
+                            background: 'var(--bg2)',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border)',
+                            display: 'grid',
+                            gap: '0.12rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap' }}>
+                            <strong>{label}</strong>
+                            <Badge variant="warning">Pending</Badge>
+                          </div>
+                          {prompt ? <div style={{ color: 'var(--muted)', fontSize: '0.84rem' }}>{prompt}</div> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -812,7 +1077,7 @@ export default function ReportsPage() {
               variant={activeInsightsTab === 'required' ? 'primary' : 'secondary'}
               onClick={() => setActiveInsightsTab('required')}
             >
-              Required Fields ({visibleRequiredUserInputs.length})
+              Required Fields ({visibleRequiredUserInputEntries.length})
             </Button>
             <Button
               variant={activeInsightsTab === 'validation' ? 'primary' : 'secondary'}
@@ -827,36 +1092,52 @@ export default function ReportsPage() {
               {previewFields.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--muted)' }}>No fields extracted yet.</p>
               ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                    gap: '0.75rem',
-                  }}
-                >
-                  {previewFields.map((field, index) => (
-                    <div
-                      key={`${field.field_id || field.field_name || index}`}
-                      style={{
-                        padding: '0.85rem',
-                        background: 'var(--bg3)',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--border)',
-                        minHeight: '88px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                        <strong>{field.field_name || field.field_id || `Field ${index + 1}`}</strong>
-                        <Badge variant={field.status === 'missing' ? 'warning' : 'success'}>{field.status || 'filled'}</Badge>
+                <div style={{ display: 'grid', gap: '0.65rem' }}>
+                  {previewFields.map((field, index) => {
+                    const label = field.field_name || field.field_id || `Field ${index + 1}`;
+                    const identifier = field.field_id || `Field-${index + 1}`;
+                    const displayValue = formatFieldValue(field.value);
+                    const isPending = field.status === 'missing' || displayValue === 'No value';
+
+                    return (
+                      <div
+                        key={`${field.field_id || field.field_name || index}`}
+                        style={{
+                          padding: '0.72rem',
+                          background: 'var(--bg3)',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                        }}
+                      >
+                        <div style={{ flex: '1 1 230px', minWidth: 0 }}>
+                          <strong>{label}</strong>
+                          <div style={{ marginTop: '0.2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
+                            Identifier: {identifier}
+                          </div>
+                          <div style={{ marginTop: '0.15rem', color: 'var(--muted)', fontSize: '0.78rem' }}>
+                            {getTenWordDescription(isPending)}
+                          </div>
+                        </div>
+                        <div
+                          title={displayValue}
+                          style={{
+                            flex: '1 1 280px',
+                            minWidth: 0,
+                            color: displayValue === 'No value' ? 'var(--muted)' : 'var(--text)',
+                            fontSize: '0.9rem',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {displayValue}
+                        </div>
+                        <Badge variant={isPending ? 'warning' : 'success'}>{isPending ? 'Pending' : 'Filled'}</Badge>
                       </div>
-                      <div style={{ marginTop: '0.2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                        Identifier: {field.field_id || `Field-${index + 1}`}
-                      </div>
-                      <div style={{ marginTop: '0.35rem', color: 'var(--muted)' }}>
-                        {field.value === null || field.value === undefined || field.value === '' ? 'No value' : String(field.value)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -864,12 +1145,12 @@ export default function ReportsPage() {
 
           {activeInsightsTab === 'required' && (
             <div role="tabpanel" aria-label="Required fields panel">
-              {visibleRequiredUserInputs.length === 0 ? (
+              {visibleRequiredUserInputEntries.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--muted)' }}>No required fields pending right now.</p>
               ) : (
-                <div style={{ display: 'grid', gap: '1rem' }}>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {requiredInputGroups.map((group) => (
-                    <div key={group.title} style={{ display: 'grid', gap: '0.7rem' }}>
+                    <div key={group.title} style={{ display: 'grid', gap: '0.45rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                         <Badge variant="info">{group.title}</Badge>
                         <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
@@ -877,17 +1158,11 @@ export default function ReportsPage() {
                         </span>
                       </div>
 
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                          gap: '0.9rem',
-                        }}
-                      >
+                      <div style={{ display: 'grid', gap: '0.45rem', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', alignItems: 'start' }}>
                         {group.items.map(({ item, originalIndex }) => {
                           const key = buildRequiredInputKey(item, originalIndex);
                           const label = item.field_name || item.field_id || `Input ${originalIndex + 1}`;
-                          const prompt = item.prompt || 'Required input';
+                          const prompt = getRequiredInputPrompt(item, label);
                           const options = parseSingleSelectOptions(item);
                           const hasSingleSelectOptions = options.length >= 2;
                           const selectedValue = requiredInputDrafts[key] ?? '';
@@ -896,61 +1171,66 @@ export default function ReportsPage() {
                             <div
                               key={key}
                               style={{
-                                display: 'grid',
-                                gap: '0.55rem',
-                                padding: '0.75rem',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'flex-start',
+                                gap: '0.5rem',
+                                padding: '0.55rem',
                                 borderRadius: '0.5rem',
                                 border: '1px solid var(--border)',
                                 background: 'var(--bg3)',
-                                gridColumn: shouldSpanRequiredInputCard(item) ? '1 / -1' : undefined,
                               }}
                             >
-                              <div style={{ display: 'grid', gap: '0.2rem' }}>
+                              <div style={{ display: 'grid', gap: '0.12rem', flex: '1 1 260px', minWidth: 0 }}>
                                 <strong style={{ fontSize: '0.92rem' }}>{label}</strong>
-                                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted)' }}>{prompt}</p>
-                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>
-                                  Identifier: {item.field_id || `Field-${originalIndex + 1}`}
-                                </p>
+                                {prompt ? <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted)' }}>{prompt}</p> : null}
                               </div>
 
-                              {hasSingleSelectOptions ? (
-                                <div style={{ display: 'grid', gap: '0.45rem' }}>
-                                  {options.map((option) => {
-                                    const isChecked = selectedValue === option;
-                                    return (
-                                      <label
-                                        key={`${key}-${option}`}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: '0.5rem',
-                                          padding: '0.55rem 0.65rem',
-                                          borderRadius: '0.45rem',
-                                          border: isChecked ? '1px solid var(--emerald)' : '1px solid var(--border)',
-                                          background: isChecked ? 'var(--card-glow-emerald)' : 'var(--bg2)',
-                                          cursor: 'pointer',
-                                        }}
-                                      >
-                                        <input
-                                          type="radio"
-                                          name={`required-choice-${key}`}
-                                          value={option}
-                                          checked={isChecked}
-                                          onChange={(event) => handleDraftChange(key, event.target.value)}
-                                        />
-                                        <span style={{ color: 'var(--text)', fontSize: '0.88rem' }}>{option}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <Input
-                                  label="Answer"
-                                  type={inferInputType(label)}
-                                  value={selectedValue}
-                                  onChange={(event) => handleDraftChange(key, event.target.value)}
-                                />
-                              )}
+                              <div style={{ flex: '1 1 300px', minWidth: 0, width: '100%', maxWidth: '560px' }}>
+                                {hasSingleSelectOptions ? (
+                                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                                    {options.map((option) => {
+                                      const isChecked = selectedValue === option;
+                                      return (
+                                        <label
+                                          key={`${key}-${option}`}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.45rem 0.55rem',
+                                            borderRadius: '0.45rem',
+                                            border: isChecked ? '1px solid var(--emerald)' : '1px solid var(--border)',
+                                            background: isChecked ? 'var(--card-glow-emerald)' : 'var(--bg2)',
+                                            cursor: 'pointer',
+                                            width: '100%',
+                                            minWidth: 0,
+                                            boxSizing: 'border-box',
+                                          }}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name={`required-choice-${key}`}
+                                            value={option}
+                                            checked={isChecked}
+                                            onChange={(event) => handleDraftChange(key, event.target.value)}
+                                          />
+                                          <span style={{ color: 'var(--text)', fontSize: '0.88rem' }}>{option}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <Input
+                                    type={inferInputType(label)}
+                                    value={selectedValue}
+                                    onChange={(event) => handleDraftChange(key, event.target.value)}
+                                    placeholder="Enter value"
+                                    containerStyle={{ width: '100%', minWidth: 0 }}
+                                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
+                                  />
+                                )}
+                              </div>
                             </div>
                           );
                         })}

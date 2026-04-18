@@ -15,7 +15,16 @@ export function Input({
   ...props
 }: InputProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', ...containerStyle }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem',
+        width: '100%',
+        minWidth: 0,
+        ...containerStyle,
+      }}
+    >
       {label && (
         <label style={{
           fontSize: '0.9rem',
@@ -34,6 +43,9 @@ export function Input({
           borderRadius: '0.5rem',
           color: 'var(--text)',
           fontSize: '1rem',
+          width: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
           ...props.style,
         }}
       />

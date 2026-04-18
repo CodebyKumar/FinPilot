@@ -21,7 +21,7 @@ export function Sidebar() {
   const navItems: Array<{ name: string; href: string; icon: LucideIcon }> = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Profile', href: '/profile', icon: User },
-    { name: 'Bookkeeping', href: '/bookkeeping', icon: BookOpen },
+    { name: 'Ledger', href: '/bookkeeping', icon: BookOpen },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Deadlines', href: '/deadlines', icon: CalendarDays },

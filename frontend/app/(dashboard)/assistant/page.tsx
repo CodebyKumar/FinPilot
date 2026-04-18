@@ -57,7 +57,7 @@ const styles = `
 
 .assistant-pane-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -77,6 +77,7 @@ const styles = `
   overflow-y: auto;
   align-content: start;
   overscroll-behavior: contain;
+  color: #111827;
 }
 
 .assistant-field {
@@ -85,7 +86,7 @@ const styles = `
 }
 
 .assistant-field label {
-  font-size: 0.82rem;
+  font-size: 0.96rem;
   font-weight: 700;
   color: var(--muted);
 }
@@ -99,7 +100,7 @@ const styles = `
   color: var(--text);
   padding: 12px;
   font-family: inherit;
-  font-size: 0.94rem;
+  font-size: 1.04rem;
   outline: none;
 }
 
@@ -122,7 +123,7 @@ const styles = `
   padding: 0 14px;
   font-family: inherit;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 1.02rem;
   cursor: pointer;
   transition: transform 120ms ease, opacity 120ms ease;
 }
@@ -137,7 +138,7 @@ const styles = `
 }
 
 .assistant-btn.primary {
-  background: linear-gradient(135deg, var(--indigo), #4f46e5);
+  background: var(--indigo);
   color: #eef2ff;
 }
 
@@ -153,12 +154,12 @@ const styles = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  background: #7c3aed;
   color: #f5f3ff;
 }
 
 .assistant-btn.icon.recording {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: #f97316;
   color: #1f1300;
 }
 
@@ -173,7 +174,7 @@ const styles = `
   border-radius: 999px;
   background: var(--bg3);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   padding: 5px 10px;
 }
 
@@ -197,8 +198,8 @@ const styles = `
 
 .results-empty {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.92rem;
+  color: #111827;
+  font-size: 1.03rem;
 }
 
 .turn-list {
@@ -218,24 +219,29 @@ const styles = `
 
 .turn-time {
   margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 0.77rem;
+  color: #4b5563;
+  font-size: 0.9rem;
 }
 
 .turn-query,
 .turn-answer {
   margin: 0 0 8px;
   line-height: 1.55;
-  white-space: pre-wrap;
-  font-size: 0.93rem;
+  font-size: 1.05rem;
 }
 
 .turn-query {
-  color: #93c5fd;
+  color: #1d4ed8;
+  white-space: pre-wrap;
 }
 
 .turn-answer {
-  color: #f8fafc;
+  color: #111827;
+  white-space: normal;
+}
+
+.turn-answer.markdown {
+  white-space: normal;
 }
 
 .turn-answer.error {
@@ -243,7 +249,7 @@ const styles = `
 }
 
 .turn-answer.markdown p {
-  margin: 0 0 7px;
+  margin: 0 0 4px;
 }
 
 .turn-answer.markdown p:last-child {
@@ -252,7 +258,7 @@ const styles = `
 
 .turn-answer.markdown ul,
 .turn-answer.markdown ol {
-  margin: 0 0 8px 18px;
+  margin: 0 0 4px 18px;
   padding: 0;
 }
 
@@ -269,7 +275,7 @@ const styles = `
 }
 
 .turn-answer.markdown pre {
-  margin: 0 0 8px;
+  margin: 0 0 5px;
   padding: 10px;
   background: rgba(2, 6, 23, 0.6);
   border: 1px solid var(--border);
@@ -290,8 +296,8 @@ const styles = `
 
 .turn-trace {
   margin: 0 0 2px;
-  color: #a5b4c8;
-  font-size: 0.8rem;
+  color: #374151;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
@@ -376,6 +382,18 @@ function deriveFallbackTrace(response: AssistantOrchestratorResponse): QueryTurn
   };
 }
 
+function compactQueryText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function compactAnswerText(value: string): string {
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function buildTurnFromResponse(query: string, response: AssistantOrchestratorResponse, error?: string): QueryTurn {
   const tracePayload = response.trace;
   const fallback = deriveFallbackTrace(response);
@@ -391,8 +409,8 @@ function buildTurnFromResponse(query: string, response: AssistantOrchestratorRes
 
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    query,
-    answer: String(response.agent_response || '').trim() || 'No output returned.',
+    query: compactQueryText(query) || query.trim(),
+    answer: compactAnswerText(String(response.agent_response || '')) || 'No output returned.',
     error,
     createdAt: new Date().toISOString(),
     trace: {
@@ -698,25 +716,30 @@ export default function AssistantPage() {
               <p className="results-empty">Run a prompt to see your conversation history.</p>
             ) : (
               <div className="turn-list">
-                {turns.map((turn) => (
-                  <article key={turn.id} className="turn-item">
-                    <p className="turn-time">{formatTime(turn.createdAt)}</p>
-                    <p className="turn-query">{turn.query}</p>
-                    {turn.error ? (
-                      <p className="turn-answer error">{turn.answer}</p>
-                    ) : (
-                      <div
-                        className="turn-answer markdown"
-                        dangerouslySetInnerHTML={{ __html: markdown.render(turn.answer || '') }}
-                      />
-                    )}
+                {turns.map((turn) => {
+                  const displayQuery = compactQueryText(turn.query || '');
+                  const displayAnswer = compactAnswerText(turn.answer || '');
 
-                    <p className="turn-trace">Agent Path: {turn.trace.route}</p>
-                    {turn.trace.queryType && <p className="turn-trace">Query Type: {turn.trace.queryType}</p>}
-                    <p className="turn-trace">Agents Used: {turn.trace.agentsUsed.join(', ')}</p>
-                    <p className="turn-trace">Resources Used: {turn.trace.resourcesUsed.join(', ')}</p>
-                  </article>
-                ))}
+                  return (
+                    <article key={turn.id} className="turn-item">
+                      <p className="turn-time">{formatTime(turn.createdAt)}</p>
+                      <p className="turn-query">{displayQuery}</p>
+                      {turn.error ? (
+                        <p className="turn-answer error">{displayAnswer}</p>
+                      ) : (
+                        <div
+                          className="turn-answer markdown"
+                          dangerouslySetInnerHTML={{ __html: markdown.render(displayAnswer) }}
+                        />
+                      )}
+
+                      <p className="turn-trace">Agent Path: {turn.trace.route}</p>
+                      {turn.trace.queryType && <p className="turn-trace">Query Type: {turn.trace.queryType}</p>}
+                      <p className="turn-trace">Agents Used: {turn.trace.agentsUsed.join(', ')}</p>
+                      <p className="turn-trace">Resources Used: {turn.trace.resourcesUsed.join(', ')}</p>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </div>

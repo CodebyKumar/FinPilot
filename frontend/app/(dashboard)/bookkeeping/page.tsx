@@ -127,7 +127,7 @@ export default function BookkeepingPage() {
         setIsFinancialReportGenerating(true);
       }
       const response = await apiClient.generateFinancialReport(userId);
-      const data = response as FinancialReportResult;
+      const data = unwrapApiData<FinancialReportResult>(response);
       setFinancialReport(data);
 
       if (data?.status === 'ok') {
@@ -258,7 +258,7 @@ export default function BookkeepingPage() {
 
   return (
     <PageShell
-      title="Bookkeeping"
+      title="Ledger"
       subtitle="Manage transactions, statements, and invoices"
       headerAction={
         <div style={{ display: 'flex', gap: '1rem' }}>

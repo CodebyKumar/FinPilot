@@ -1,3 +1,0 @@
-"""
-Pocket CFO Parser
-"""
