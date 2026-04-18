@@ -1842,7 +1842,7 @@ def _task_deadline_send_reminders(user_id: str, payload: dict[str, Any]) -> dict
     except Exception:
         limit = 50
 
-    queued_new = scan_deadlines_once(user_id=user_id)
+    queued_new = scan_deadlines_once(user_id=user_id, force_queue=True)
     sent = dispatch_queued_notifications(limit=limit, user_id=user_id)
     still_queued = _get_db()["notifications"].count_documents({"user_id": user_id, "status": "queued"})
 

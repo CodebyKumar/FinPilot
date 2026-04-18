@@ -98,8 +98,10 @@ export default function ProfilePage() {
       try {
         setIsLoading(true);
         const response = await apiClient.getProfile(userId);
-        const profile = response?.data?.profile ?? {};
-        const user = response?.data?.user ?? {};
+        const payload = response?.data || response;
+        const data = payload?.data || payload;
+        const profile = data?.profile ?? {};
+        const user = data?.user ?? {};
         const profileExists = Object.keys(profile).length > 0;
         const personal = profile?.personal_info ?? {};
         const business = profile?.business_info ?? {};
@@ -121,8 +123,8 @@ export default function ProfilePage() {
 
         setHasExistingProfile(profileExists);
         setProfileIdentifiers({
-          userId: profile?.user_id ?? user?.external_user_id ?? userId,
-          backendUserId: user?._id ?? null,
+          userId: profileExists ? (profile?.user_id ?? user?.external_user_id ?? userId) : null,
+          backendUserId: profileExists ? (user?._id ?? null) : null,
         });
         setForm({
           fullName: personal?.full_name ?? '',
@@ -285,7 +287,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {profileIdentifiers.userId && (
+      {hasExistingProfile && profileIdentifiers.userId && (
         <div
           style={{
             marginBottom: '1rem',

@@ -55,7 +55,8 @@ export default function DeadlinesPage() {
     try {
       setIsLoading(true);
       const response = await apiClient.getDeadlines(userId);
-      const data = response?.data || response;
+      const payload = response?.data || response;
+      const data = payload?.data || payload;
       setDeadlines(Array.isArray(data?.deadlines) ? data.deadlines : []);
     } catch (error) {
       setMessage(getErrorMessage(error, 'Failed to load deadlines'), 'error');
@@ -118,7 +119,8 @@ export default function DeadlinesPage() {
     try {
       setIsSendingReminders(true);
       const response = await apiClient.sendDeadlineReminders(userId);
-      const data = response?.data || response;
+      const payload = response?.data || response;
+      const data = payload?.data || payload;
       setMessage(
         `Reminders queued: ${data?.queued_new ?? 0}, sent: ${data?.sent ?? 0}, still queued: ${data?.still_queued ?? 0}`,
         'success'
@@ -229,6 +231,11 @@ export default function DeadlinesPage() {
                   {deadline.meta?.invoice_date && (
                     <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
                       Invoice date: {deadline.meta.invoice_date}
+                    </p>
+                  )}
+                  {deadline.meta?.transaction_date && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      Transaction date: {deadline.meta.transaction_date}
                     </p>
                   )}
                 </div>

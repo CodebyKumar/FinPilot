@@ -48,7 +48,7 @@ def _submitted_report_ids(user_id: str) -> set[str]:
     return {r.get("report_id") for r in reports if r.get("report_id")}
 
 
-def scan_deadlines_once(user_id: str | None = None) -> int:
+def scan_deadlines_once(user_id: str | None = None, force_queue: bool = False) -> int:
     now = datetime.now()
     created = 0
     windows = {7, 1, 0}
@@ -73,7 +73,7 @@ def scan_deadlines_once(user_id: str | None = None) -> int:
             continue
 
         days = _days_left(due_date, now)
-        if days not in windows:
+        if not force_queue and days not in windows:
             continue
 
         report_id = item.get("meta", {}).get("report_id")
