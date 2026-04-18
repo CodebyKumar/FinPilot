@@ -1312,10 +1312,10 @@
             <button class="btn btn-ghost" onclick="downloadReports()">⬇️ Download JSON</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-primary" onclick="downloadCAPDF()">📄 Download CA PDF</button>
+            <button class="btn btn-primary" onclick="downloadReportsHTML()">🧾 Download HTML Report</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="analyzeReports()">🧠 Analyze Reports</button>
+            <button class="btn btn-ghost" onclick="analyzeReports()">🧠 Analyze Reports (OpenAI)</button>
           </div>
         </div>
       </div>
@@ -1919,8 +1919,18 @@
   /* ───────────────────────────────────────────────
       STATE
   ─────────────────────────────────────────────── */
-  let API = 'http://localhost:8000';
+  function getDefaultApiBase() {
+    const fromWindow = (window.__POCKET_CFO_CONFIG && window.__POCKET_CFO_CONFIG.API_BASE_URL) || '';
+    const fromQuery = new URLSearchParams(window.location.search).get('api') || '';
+    const fromStorage = localStorage.getItem('pocket_cfo_api') || '';
+    const host = window.location.hostname;
+    const fromHost = (host && host !== 'localhost' && host !== '127.0.0.1') ? `${window.location.protocol}//${host}:8000` : 'http://localhost:8000';
+    return (fromQuery || fromWindow || fromStorage || fromHost).replace(/\/$/, '');
+  }
+
+  let API = getDefaultApiBase();
   let USER_ID = '';
+  let LAST_REPORT_BUNDLE = null;
 
   const SMS_SAMPLES = [
     "INB:Your A/c XX4521 debited Rs.349.00 on 17-Apr-26 to VPA swiggy@icici. Avl Bal:Rs.12,450.50 -HDFC Bank",
@@ -1956,6 +1966,8 @@
   function saveConfig() {
     API = document.getElementById('cfg-api-url').value.replace(/\/$/, '');
     USER_ID = document.getElementById('cfg-user-id').value.trim();
+    localStorage.setItem('pocket_cfo_api', API);
+    localStorage.setItem('pocket_cfo_user', USER_ID);
     document.getElementById('api-url-display').textContent = API;
     document.getElementById('m-uid').textContent = USER_ID || 'None';
     showToast('Config saved — testing connection…', 'success');
@@ -3325,12 +3337,26 @@
       const r = await fetch(`${API}/reports/generate-all/${uid}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
+      LAST_REPORT_BUNDLE = data;
       document.getElementById('reports-analysis-grid').style.display = 'grid';
       document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
       showToast(data.status === 'ok' ? 'All reports generated' : (data.message || 'No data found'), data.status === 'ok' ? 'success' : 'error');
     } catch (e) {
       showToast('Generate reports failed: ' + e.message, 'error');
     }
+  }
+
+  async function ensureReportsBundle(uid) {
+    if (LAST_REPORT_BUNDLE && LAST_REPORT_BUNDLE.user_id === uid && LAST_REPORT_BUNDLE.status === 'ok') {
+      return LAST_REPORT_BUNDLE;
+    }
+    const r = await fetch(`${API}/reports/generate-all/${uid}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    LAST_REPORT_BUNDLE = data;
+    document.getElementById('reports-analysis-grid').style.display = 'grid';
+    document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
+    return data;
   }
 
   async function analyzeReports() {
@@ -3393,6 +3419,38 @@
     }
   }
 
+  async function downloadReportsHTML() {
+    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+    if (!uid) { showToast('Enter a User ID', 'error'); return; }
+    try {
+      const url = `${API}/reports/download/${uid}?format=html`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('Downloading generated HTML report…', 'success');
+    } catch (e) {
+      showToast('HTML download failed: ' + e.message, 'error');
+    }
+  }
+
+  function parseLocalDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    return new Date(y, mo, d);
+  }
+
+  function dateKeyLocal(dt) {
+    if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return '';
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+
   function buildCalendarHTML(monthDate, eventsByDate) {
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
@@ -3415,7 +3473,7 @@
         } else {
           const dateStr = `${monthKey}-${String(day).padStart(2, '0')}`;
           const ev = eventsByDate[dateStr] || [];
-          const dot = ev.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${ev.slice(0,3).map(e => `<span class="badge" style="font-size:0.62rem;">${e.form_code}</span>`).join('')}</div>` : '';
+          const dot = ev.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${ev.slice(0,4).map(e => `<span class="badge" style="font-size:0.62rem;">${e.form_code} (T-${e.offset_days || 0})</span>`).join('')}</div>` : '';
           rowHtml += `<td style="vertical-align:top; padding:8px; border:1px solid rgba(255,255,255,0.06); min-width:110px;">
             <div style="font-weight:700; font-family:'DM Mono',monospace; font-size:0.85rem;">${day}</div>
             ${dot}
@@ -3449,20 +3507,40 @@
         return;
       }
 
-      const reminders = cal.reminders || [];
+      const reminders = (cal.reminders || []).slice();
+      reminders.sort((a, b) => String(a.reminder_date || '').localeCompare(String(b.reminder_date || '')));
+
       const eventsByDate = {};
       reminders.forEach(ev => {
-        const d = ev.reminder_date;
+        const dObj = parseLocalDate(ev.reminder_date);
+        const d = dObj ? dateKeyLocal(dObj) : ev.reminder_date;
+        if (!d) return;
         if (!eventsByDate[d]) eventsByDate[d] = [];
         eventsByDate[d].push(ev);
       });
-      const upcoming = (data.upcoming || []).slice(0, 6);
-      const monthToShow = upcoming.length ? new Date(upcoming[0].reminder_date) : new Date();
+
+      const today = new Date();
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const upcoming = reminders
+        .filter(r => {
+          const d = parseLocalDate(r.reminder_date);
+          return d && d >= todayOnly;
+        })
+        .slice(0, 10);
+
+      let monthToShow = new Date(todayOnly.getFullYear(), todayOnly.getMonth(), 1);
+      if (upcoming.length) {
+        const d = parseLocalDate(upcoming[0].reminder_date);
+        if (d) monthToShow = new Date(d.getFullYear(), d.getMonth(), 1);
+      } else if (reminders.length) {
+        const d = parseLocalDate(reminders[0].reminder_date);
+        if (d) monthToShow = new Date(d.getFullYear(), d.getMonth(), 1);
+      }
 
       const card = document.getElementById('calendar-card');
       card.style.display = 'block';
       document.getElementById('calendar-meta').textContent = `Entity: ${cal.entity_type || '—'} | FY End: ${cal.financial_year_end || '—'} | Total reminders: ${reminders.length}`;
-      const upcomingList = upcoming.length ? `<div class="mt-2"><div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Upcoming Reminders</div>${upcoming.map(u => `<div class="action-card amber"><div class="action-msg"><b>${u.form_code}</b> — ${u.reminder_date} (T-${u.offset_days} days)</div></div>`).join('')}</div>` : '';
+      const upcomingList = upcoming.length ? `<div class="mt-2"><div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Upcoming Reminders</div>${upcoming.map(u => `<div class="action-card amber"><div class="action-msg"><b>${u.form_code}</b> — reminder: ${u.reminder_date} | due: ${u.due_date || '—'} (T-${u.offset_days || 0} days)</div></div>`).join('')}</div>` : '<div class="text-muted" style="margin-top:8px;">No upcoming reminders found in calendar.</div>';
       document.getElementById('calendar-grid').innerHTML = buildCalendarHTML(monthToShow, eventsByDate) + upcomingList;
       document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
       document.getElementById('reports-analysis-grid').style.display = 'grid';
@@ -3877,6 +3955,18 @@
       INIT
   ─────────────────────────────────────────────── */
   window.addEventListener('DOMContentLoaded', () => {
+    const apiInput = document.getElementById('cfg-api-url');
+    const userInput = document.getElementById('cfg-user-id');
+    if (apiInput) apiInput.value = API;
+    document.getElementById('api-url-display').textContent = API;
+
+    const rememberedUser = localStorage.getItem('pocket_cfo_user') || '';
+    if (rememberedUser) {
+      USER_ID = rememberedUser;
+      if (userInput) userInput.value = rememberedUser;
+      document.getElementById('m-uid').textContent = rememberedUser;
+    }
+
     checkHealthSilent();
     setInterval(() => {
       if (!document.hidden) checkHealthSilent();
