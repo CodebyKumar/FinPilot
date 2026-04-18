@@ -61,13 +61,23 @@ ASSISTANT_SCOPE_KEYWORDS = (
     "itc",
     "tds",
     "compliance",
+    "deadline",
+    "due",
+    "reminder",
+    "calendar",
     "bookkeeping",
     "ledger",
+    "transaction",
+    "transactions",
     "invoice",
+    "correction",
+    "corrections",
     "profit",
     "expense",
     "cashflow",
     "report",
+    "form",
+    "itr",
     "filing",
     "finance",
     "deduction",
@@ -2001,14 +2011,8 @@ def _task_assistant_chat(user_id: str, payload: dict[str, Any]) -> dict[str, Any
 
     lowered = str(message).lower()
     in_scope = any(keyword in lowered for keyword in ASSISTANT_SCOPE_KEYWORDS)
-    if not in_scope:
-        return {
-            "answered": False,
-            "error": "Query is out of scope. Ask tax, finance, bookkeeping, report, or compliance questions.",
-        }
-
     response = execute_goal(user_id, message)
-    return {"answered": True, "response": response}
+    return {"answered": True, "response": response, "in_scope": in_scope}
 
 
 TASK_HANDLERS = {

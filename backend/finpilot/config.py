@@ -24,6 +24,9 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
 # ── OpenAI (optional – GST agent AI fallback) ─────────────────────────────────
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+ORCHESTRATOR_OPENAI_MODEL: str = os.getenv("ORCHESTRATOR_OPENAI_MODEL", "gpt-4o")
+AGENT_MEMORY_MAX_HISTORY_MESSAGES: int = int(os.getenv("AGENT_MEMORY_MAX_HISTORY_MESSAGES", "12"))
+AGENT_MEMORY_MAX_HIGHLIGHTS: int = int(os.getenv("AGENT_MEMORY_MAX_HIGHLIGHTS", "8"))
 
 PROFILE_ENCRYPTION_SECRET: str = os.getenv("PROFILE_ENCRYPTION_SECRET", "finpilot-dev-secret")
 DEADLINE_SCAN_INTERVAL_SECONDS: int = int(os.getenv("DEADLINE_SCAN_INTERVAL_SECONDS", "3600"))

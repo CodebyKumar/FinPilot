@@ -1,14 +1,33 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { PageShell } from '@/components/layout/page-shell';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Mic, MicOff, Send } from 'lucide-react';
 
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
+import { PageShell } from '@/components/layout/page-shell';
+import { apiClient } from '@/lib/api-client';
+import type { AssistantChatEnvelope, AssistantOrchestratorResponse } from '@/types/assistant';
+
+type StatusKind = 'idle' | 'busy' | 'ok' | 'error';
+
+interface QueryTurn {
+  id: string;
+  query: string;
+  answer: string;
+  error?: string;
+  createdAt: string;
+  trace: {
+    route: string;
+    queryType?: string;
+    agentsUsed: string[];
+    resourcesUsed: string[];
+  };
 }
 
+const FIXED_USER_ID = 'default';
+const VOICE_LANGUAGE = 'en-IN';
+
 const styles = `
+<<<<<<< HEAD
 .voice-assistant-container {
   --ink: var(--text);
   --muted: var(--muted);
@@ -101,688 +120,700 @@ const styles = `
 }
 
 .agent-layout {
+=======
+.assistant-canvas {
+>>>>>>> f377ce7 (feat: add new types and interfaces for assistant capabilities and orchestrator responses)
   display: grid;
+  grid-template-columns: minmax(320px, 35%) minmax(0, 65%);
   gap: 18px;
-  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  align-items: stretch;
+  min-height: calc(100vh - 220px);
 }
 
-.agent-controls {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.button {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 700;
-  min-height: 44px;
-  padding: 0 16px;
-  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
-  font-family: inherit;
-  font-size: 0.95rem;
-}
-
-.button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
-}
-
-.button.primary {
-  background: var(--teal);
-  color: #ffffff;
-}
-
-.button.primary:hover:not(:disabled) {
-  background: var(--teal-dark);
-}
-
-.button.secondary {
-  background: var(--bg3);
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.button.danger {
-  background: var(--rose);
-  color: #ffffff;
-}
-
-.conversation {
-  display: grid;
-  gap: 12px;
-  max-height: 460px;
-  min-height: 300px;
-  overflow: auto;
-  padding: 14px;
-  background: var(--bg3);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.turn {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.turn strong {
-  display: block;
-  font-size: 0.84rem;
-  margin-bottom: 6px;
-  font-weight: 700;
-}
-
-.turn.user strong {
-  color: var(--indigo);
-}
-
-.turn.assistant strong {
-  color: var(--green);
-}
-
-.turn p {
-  line-height: 1.45;
-  margin: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  color: var(--ink);
-  font-size: 0.95rem;
-}
-
-.message {
-  color: var(--muted);
-  font-size: 0.94rem;
-  min-height: 22px;
-  padding: 8px 12px;
-  background: var(--bg3);
-  border-radius: 6px;
-}
-
-.message.error {
-  color: var(--rose);
-  font-weight: 700;
-  background: rgba(190, 18, 60, 0.1);
-}
-
-.message.ok {
-  color: var(--green);
-  font-weight: 700;
-  background: rgba(21, 128, 61, 0.1);
-}
-
-.meter {
-  background: var(--bg3);
-  border-radius: 8px;
-  height: 10px;
+.assistant-pane {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg2);
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.3);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.meter span {
-  background: var(--indigo);
-  display: block;
-  height: 100%;
-  transition: width 160ms ease;
-  width: 0%;
+.assistant-pane.response-pane {
+  height: calc(100vh - 220px);
 }
 
-.form-group {
-  display: grid;
+.assistant-pane-head {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.assistant-pane-title {
+  margin: 0;
+  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
-.form-group label {
-  color: var(--muted);
-  display: block;
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.form-group select,
-.form-group input {
-  background: var(--bg3);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  outline: 0;
-  padding: 11px 12px;
-  font-family: inherit;
-  font-size: 0.95rem;
-}
-
-.form-group select:focus,
-.form-group input:focus {
-  border-color: var(--indigo);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-}
-
-audio {
-  width: 100%;
-}
-
-.controls-section {
+.assistant-pane-body {
+  padding: 16px;
   display: grid;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
-.feature-list {
+.assistant-pane.response-pane .assistant-pane-body {
+  overflow-y: auto;
+  align-content: start;
+  overscroll-behavior: contain;
+}
+
+.assistant-field {
   display: grid;
-  gap: 1rem;
+  gap: 6px;
 }
 
-.feature-item-title {
-  margin: 0 0 0.5rem;
-  font-size: 0.95rem;
+.assistant-field label {
+  font-size: 0.82rem;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--muted);
 }
 
-.feature-item-desc {
-  margin: 0;
+.assistant-textarea {
+  min-height: 170px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg3);
+  color: var(--text);
+  padding: 12px;
+  font-family: inherit;
+  font-size: 0.94rem;
+  outline: none;
+}
+
+.assistant-textarea:focus {
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+.assistant-actions {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.assistant-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-weight: 700;
   font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.assistant-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.assistant-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assistant-btn.primary {
+  background: linear-gradient(135deg, var(--indigo), #4f46e5);
+  color: #eef2ff;
+}
+
+.assistant-btn.secondary {
+  background: var(--bg3);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.assistant-btn.icon {
+  min-width: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #f5f3ff;
+}
+
+.assistant-btn.icon.recording {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #1f1300;
+}
+
+.assistant-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant-feature-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg3);
   color: var(--muted);
+  font-size: 0.78rem;
+  padding: 5px 10px;
+}
+
+.assistant-status {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--muted);
+}
+
+.assistant-status.busy {
+  color: #f59e0b;
+}
+
+.assistant-status.ok {
+  color: var(--emerald);
+}
+
+.assistant-status.error {
+  color: var(--rose);
+}
+
+.results-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.turn-list {
+  display: grid;
+  gap: 16px;
+}
+
+.turn-item {
+  border-bottom: 1px solid var(--border);
+  padding: 2px 0 14px;
+}
+
+.turn-item:last-child {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.turn-time {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.77rem;
+}
+
+.turn-query,
+.turn-answer {
+  margin: 0 0 8px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  font-size: 0.93rem;
+}
+
+.turn-query {
+  color: #93c5fd;
+}
+
+.turn-answer {
+  color: #f8fafc;
+}
+
+.turn-answer.error {
+  color: var(--rose);
+}
+
+.turn-answer.markdown p {
+  margin: 0 0 7px;
+}
+
+.turn-answer.markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.turn-answer.markdown ul,
+.turn-answer.markdown ol {
+  margin: 0 0 8px 18px;
+  padding: 0;
+}
+
+.turn-answer.markdown li {
+  margin: 0 0 4px;
+}
+
+.turn-answer.markdown code {
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+  padding: 1px 5px;
+  font-size: 0.84em;
+}
+
+.turn-answer.markdown pre {
+  margin: 0 0 8px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.turn-answer.markdown pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.turn-answer.markdown a {
+  color: #a5b4fc;
+  text-decoration: underline;
+}
+
+.turn-trace {
+  margin: 0 0 2px;
+  color: #a5b4c8;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
-@media (max-width: 920px) {
-  .voice-assistant-container {
+@media (max-width: 1080px) {
+  .assistant-canvas {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
-  
-  .agent-layout {
-    grid-template-columns: 1fr;
+
+  .assistant-pane.response-pane {
+    height: 58vh;
+  }
+
+  .assistant-pane.response-pane .assistant-pane-body {
+    max-height: none;
+  }
+
+  .assistant-actions {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .assistant-actions .assistant-btn.secondary {
+    grid-column: 1 / -1;
   }
 }
 `;
 
+function normalizeChatEnvelope(payload: unknown): AssistantChatEnvelope {
+  if (payload && typeof payload === 'object') {
+    const value = payload as Record<string, unknown>;
+    if ('answered' in value || 'response' in value || 'error' in value) {
+      return value as AssistantChatEnvelope;
+    }
+    if (value.data && typeof value.data === 'object') {
+      return value.data as AssistantChatEnvelope;
+    }
+  }
+  return {};
+}
+
+async function readErrorPayload(response: Response): Promise<string> {
+  const text = await response.text();
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.detail) {
+      return typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return text || `Request failed with status ${response.status}`;
+  }
+}
+
+function deriveFallbackTrace(response: AssistantOrchestratorResponse): QueryTurn['trace'] {
+  const route = String(response.capability || 'general');
+  const capabilityResult =
+    response.capability_result && typeof response.capability_result === 'object'
+      ? response.capability_result
+      : {};
+  const nested =
+    capabilityResult &&
+    typeof capabilityResult === 'object' &&
+    'result' in capabilityResult &&
+    (capabilityResult as Record<string, unknown>).result &&
+    typeof (capabilityResult as Record<string, unknown>).result === 'object'
+      ? ((capabilityResult as Record<string, unknown>).result as Record<string, unknown>)
+      : (capabilityResult as Record<string, unknown>);
+
+  const queryType = typeof nested.query_type === 'string' ? nested.query_type : undefined;
+  const resourcesByRoute: Record<string, string[]> = {
+    bookkeeping: ['transactions', 'bookkeeping_entries'],
+    deadline: ['deadlines', 'compliance_calendar'],
+    report: ['profiles', 'reports', 'transactions'],
+    general: ['transactions', 'deadlines'],
+  };
+
+  return {
+    route,
+    queryType,
+    agentsUsed: [`${route}_capability`, 'synthesize_response'],
+    resourcesUsed: resourcesByRoute[route] || ['transactions'],
+  };
+}
+
+function buildTurnFromResponse(query: string, response: AssistantOrchestratorResponse, error?: string): QueryTurn {
+  const tracePayload = response.trace;
+  const fallback = deriveFallbackTrace(response);
+
+  const route = typeof tracePayload?.route === 'string' ? tracePayload.route : fallback.route;
+  const queryType = typeof tracePayload?.query_type === 'string' ? tracePayload.query_type : fallback.queryType;
+  const agentsUsed = Array.isArray(tracePayload?.agents_used) && tracePayload?.agents_used.length
+    ? tracePayload.agents_used.map((item) => String(item))
+    : fallback.agentsUsed;
+  const resourcesUsed = Array.isArray(tracePayload?.resources_used) && tracePayload?.resources_used.length
+    ? tracePayload.resources_used.map((item) => String(item))
+    : fallback.resourcesUsed;
+
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    query,
+    answer: String(response.agent_response || '').trim() || 'No output returned.',
+    error,
+    createdAt: new Date().toISOString(),
+    trace: {
+      route,
+      queryType,
+      agentsUsed,
+      resourcesUsed,
+    },
+  };
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export default function AssistantPage() {
-  // State management
-  const [conversation, setConversation] = useState<Message[]>([]);
-  const [status, setStatus] = useState('Idle');
-  const [statusType, setStatusType] = useState<'' | 'error' | 'ok'>('');
-  const [recording, setRecording] = useState(false);
-  const [meterWidth, setMeterWidth] = useState(0);
-  const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
-  const [turnSeconds, setTurnSeconds] = useState(6);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<{ text: string; kind: StatusKind }>({ text: 'Ready', kind: 'ok' });
+  const [turns, setTurns] = useState<QueryTurn[]>([]);
 
-  // Refs for agent state
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
   const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const meterTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRefRef = useRef<HTMLAudioElement | null>(null);
-  const conversationRef = useRef<HTMLDivElement | null>(null);
 
-  // API configuration
-  const apiOrigin =
-    typeof window !== 'undefined'
-      ? (new URLSearchParams(window.location.search).get('api_origin') ||
-          (window.localStorage?.getItem('voiceApiOrigin') || '')) ||
-        (window.location.origin.includes(':8000')
-          ? window.location.origin
-          : 'http://127.0.0.1:8000')
-      : 'http://127.0.0.1:8000';
-
-  const voiceApiBase = `${apiOrigin.replace(/\/$/, '')}/voice-agent`;
-
-  // Utility functions
-  const setMessage = useCallback((text: string, kind: '' | 'error' | 'ok' = '') => {
-    setStatus(text);
-    setStatusType(kind);
+  const voiceApiBase = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')}/voice-agent`;
+  const markdown = useMemo(() => {
+    const MarkdownItRuntime = require('markdown-it');
+    const parser = new MarkdownItRuntime({
+      html: false,
+      breaks: true,
+      linkify: true,
+      typographer: true,
+    });
+    return parser;
   }, []);
 
-  const readError = async (response: Response): Promise<string> => {
-    const text = await response.text();
-    try {
-      const data = JSON.parse(text);
-      return data.detail ? JSON.stringify(data.detail, null, 2) : JSON.stringify(data, null, 2);
-    } catch {
-      return text || `${response.status} ${response.statusText}`;
-    }
-  };
-
-  const base64ToAudioBlob = (audioBase64: string, format: string) => {
-    const binary = atob(audioBase64);
-    const chunks = [];
-    for (let offset = 0; offset < binary.length; offset += 1024) {
-      const slice = binary.slice(offset, offset + 1024);
-      const bytes = new Uint8Array(slice.length);
-      for (let i = 0; i < slice.length; i++) {
-        bytes[i] = slice.charCodeAt(i);
-      }
-      chunks.push(bytes);
-    }
-    const mime = format === 'wav' ? 'audio/wav' : `audio/${format}`;
-    return new Blob(chunks, { type: mime });
-  };
-
-  const clearTimers = useCallback(() => {
-    if (meterTimerRef.current) clearInterval(meterTimerRef.current);
-    if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
-    meterTimerRef.current = null;
-    autoStopTimerRef.current = null;
-    setMeterWidth(0);
+  const setStatusMessage = useCallback((text: string, kind: StatusKind = 'idle') => {
+    setStatus({ text, kind });
   }, []);
 
-  const stopStream = useCallback(() => {
+  const releaseRecorder = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    recorderRef.current = null;
   }, []);
 
-  // Mic permission check
-  const checkMicrophoneSupport = useCallback((): string => {
-    if (!window.isSecureContext) {
-      return 'Open this page as http://localhost:8000/. Browsers block microphone access on insecure origins.';
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return 'This browser does not support microphone access. Use Chrome, Edge, or Firefox.';
-    }
-    if (!window.MediaRecorder) {
-      return 'This browser does not support MediaRecorder. Use Chrome, Edge, or Firefox.';
-    }
-    return '';
-  }, []);
-
-  // Start listening
-  const beginListening = useCallback(async () => {
-    try {
-      const supportMessage = checkMicrophoneSupport();
-      if (supportMessage) {
-        setMessage(supportMessage, 'error');
-        return;
-      }
-
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-      chunksRef.current = [];
-
-      const recorderOptions = MediaRecorder.isTypeSupported('audio/webm')
-        ? { mimeType: 'audio/webm' }
-        : undefined;
-
-      recorderRef.current = new MediaRecorder(streamRef.current, recorderOptions);
-
-      recorderRef.current.ondataavailable = (event) => {
-        chunksRef.current.push(event.data);
-      };
-
-      recorderRef.current.onstop = async () => {
-        if (chunksRef.current.length > 0) {
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          await processAgentTurn(blob);
-        }
-      };
-
-      recorderRef.current.start(250);
-      setRecording(true);
-      setMessage('Listening...');
-
-      let width = 12;
-      meterTimerRef.current = setInterval(() => {
-        width = Math.min(100, width + Math.random() * 20);
-        setMeterWidth(width);
-      }, 180);
-
-      const turnMs = Math.max(2, Math.min(20, turnSeconds)) * 1000;
-      autoStopTimerRef.current = setTimeout(() => {
-        stopRecording();
-      }, turnMs);
-    } catch (error: any) {
-      setMessage(error.message || 'Error accessing microphone', 'error');
-      clearTimers();
-      stopStream();
-    }
-  }, [checkMicrophoneSupport, setMessage, turnSeconds, clearTimers, stopStream]);
-
-  const stopRecording = useCallback(() => {
-    if (!recorderRef.current || recorderRef.current.state !== 'recording') return;
-    clearTimers();
-    setRecording(false);
-    setMessage('Transcribing...');
-    recorderRef.current.stop();
-  }, [clearTimers, setMessage]);
-
-  // Process turn: transcribe audio and get agent response
-  const processAgentTurn = useCallback(
+  const transcribeVoiceBlob = useCallback(
     async (blob: Blob) => {
       if (blob.size < 1024) {
-        setMessage('No speech detected. Listening again...');
-        setTimeout(beginListening, 500);
+        setStatusMessage('No speech detected. Please try again.', 'error');
         return;
       }
 
+      setIsTranscribing(true);
+      setStatusMessage('Transcribing voice query...', 'busy');
+
       try {
-        setMessage('Transcribing...');
-        const file = new File([blob], 'agent-turn.webm', { type: blob.type });
-        const form = new FormData();
-        form.append('file', file);
-        form.append('language_code', selectedLanguage);
-        form.append('model', 'saaras:v3');
-        form.append('mode', 'transcribe');
+        const file = new File([blob], 'assistant-query.webm', { type: blob.type || 'audio/webm' });
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('language_code', VOICE_LANGUAGE);
+        formData.append('model', 'saaras:v3');
+        formData.append('mode', 'transcribe');
 
         const sttResponse = await fetch(`${voiceApiBase}/stt/transcribe`, {
           method: 'POST',
-          body: form,
+          body: formData,
         });
 
         if (!sttResponse.ok) {
-          throw new Error(await readError(sttResponse));
+          throw new Error(await readErrorPayload(sttResponse));
         }
 
         const sttData = await sttResponse.json();
-        const transcript = (sttData.transcript || '').trim();
+        const transcript = String(sttData?.transcript || '').trim();
 
         if (!transcript) {
-          setMessage('Could not understand. Listening again...');
-          setTimeout(beginListening, 500);
+          setStatusMessage('Transcription is empty. Try once more.', 'error');
           return;
         }
 
-        // Add user message to conversation
-        const newUserMessage: Message = { role: 'user', content: transcript };
-        setConversation((prev) => [...prev, newUserMessage]);
-
-        // Get agent response
-        setMessage('Thinking...');
-        const agentResponse = await fetch(`${voiceApiBase}/agent/respond`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: 'default',
-            user_input: transcript,
-            language_code: selectedLanguage,
-          }),
-        });
-
-        if (!agentResponse.ok) {
-          throw new Error(await readError(agentResponse));
-        }
-
-        const agentData = await agentResponse.json();
-        const assistantText = (agentData.assistant_text || '').trim();
-
-        if (!assistantText) {
-          setMessage('No response from agent.');
-          setTimeout(beginListening, 500);
-          return;
-        }
-
-        // Add assistant message
-        const newAssistantMessage: Message = { role: 'assistant', content: assistantText };
-        setConversation((prev) => [...prev, newAssistantMessage]);
-
-        // Play audio response
-        await playAgentAudio(agentData.audio_base64, agentData.audio_format || 'wav');
-      } catch (error: any) {
-        setMessage(error.message || 'Error processing turn', 'error');
-        clearTimers();
-        stopStream();
+        setQuery((prev) => (prev.trim() ? `${prev.trim()}\n${transcript}` : transcript));
+        setStatusMessage('Voice text added to your query.', 'ok');
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Voice transcription failed.';
+        setStatusMessage(message, 'error');
+      } finally {
+        setIsTranscribing(false);
       }
     },
-    [selectedLanguage, voiceApiBase, readError, beginListening, clearTimers, stopStream]
+    [setStatusMessage, voiceApiBase]
   );
 
-  const playAgentAudio = useCallback(
-    async (audioBase64: string, format: string) => {
-      const blob = base64ToAudioBlob(audioBase64, format);
-      const audioUrl = URL.createObjectURL(blob);
-
-      if (audioRefRef.current) {
-        if (audioRefRef.current.src) URL.revokeObjectURL(audioRefRef.current.src);
-        audioRefRef.current.src = audioUrl;
-        setMessage('Speaking...');
-
-        audioRefRef.current.onended = () => {
-          setTimeout(beginListening, 450);
-        };
-
-        await audioRefRef.current.play();
-      }
-    },
-    [beginListening, setMessage]
-  );
-
-  const startAgent = useCallback(async () => {
-    const supportMessage = checkMicrophoneSupport();
-    if (supportMessage) {
-      setMessage(supportMessage, 'error');
+  const startVoiceCapture = useCallback(async () => {
+    if (isRecording || isTranscribing) {
       return;
     }
 
-    await beginListening();
-  }, [checkMicrophoneSupport, setMessage, beginListening]);
-
-  const stopAgent = useCallback(() => {
-    clearTimers();
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      recorderRef.current.onstop = () => {
-        stopStream();
-      };
-      recorderRef.current.stop();
-    } else {
-      stopStream();
+    if (!window.isSecureContext) {
+      setStatusMessage('Microphone needs localhost or HTTPS secure context.', 'error');
+      return;
     }
 
-    if (audioRefRef.current) {
-      audioRefRef.current.pause();
-      audioRefRef.current.currentTime = 0;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setStatusMessage('This browser does not support voice capture.', 'error');
+      return;
     }
 
-    setRecording(false);
-    setMessage('Idle');
-  }, [clearTimers, stopStream, setMessage]);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
 
-  const resetAgent = useCallback(() => {
-    setConversation([]);
-    if (audioRefRef.current && audioRefRef.current.src) {
-      URL.revokeObjectURL(audioRefRef.current.src);
-      audioRefRef.current.src = '';
-    }
-    setMessage('Idle');
-  }, [setMessage]);
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
 
-  useEffect(() => {
-    if (conversationRef.current) {
-      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-    }
-  }, [conversation]);
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      recorderRef.current = recorder;
 
-  // Check API health on mount
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const response = await fetch(`${voiceApiBase}/health`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Voice Agent Health:', data);
-          setMessage('Ready', 'ok');
-        } else {
-          console.error('Health check failed:', response.status);
-          setMessage(`API Error: ${response.status}`, 'error');
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
         }
-      } catch (error: any) {
-        console.error('Health check error:', error);
-        setMessage(`Cannot reach API: ${error.message}`, 'error');
+      };
+
+      recorder.onstop = async () => {
+        const recordedChunks = [...chunksRef.current];
+        chunksRef.current = [];
+        releaseRecorder();
+        const recordedBlob = new Blob(recordedChunks, { type: mimeType || 'audio/webm' });
+        await transcribeVoiceBlob(recordedBlob);
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setStatusMessage('Listening...', 'busy');
+    } catch (error: unknown) {
+      releaseRecorder();
+      const message = error instanceof Error ? error.message : 'Unable to access microphone.';
+      setStatusMessage(message, 'error');
+    }
+  }, [isRecording, isTranscribing, releaseRecorder, setStatusMessage, transcribeVoiceBlob]);
+
+  const stopVoiceCapture = useCallback(() => {
+    if (!recorderRef.current || recorderRef.current.state !== 'recording') {
+      return;
+    }
+    setIsRecording(false);
+    setStatusMessage('Stopping capture...', 'busy');
+    recorderRef.current.stop();
+  }, [setStatusMessage]);
+
+  const toggleVoiceCapture = useCallback(() => {
+    if (isRecording) {
+      stopVoiceCapture();
+      return;
+    }
+    void startVoiceCapture();
+  }, [isRecording, startVoiceCapture, stopVoiceCapture]);
+
+  const runAssistantQuery = useCallback(async () => {
+    const baseQuery = query.trim();
+    if (!baseQuery) {
+      setStatusMessage('Please enter a query first.', 'error');
+      return;
+    }
+
+    setQuery('');
+
+    setIsSending(true);
+    setStatusMessage('Running assistant...', 'busy');
+
+    try {
+      const apiResponse = await apiClient.assistantChat({
+        user_id: FIXED_USER_ID,
+        message: baseQuery,
+      });
+      const envelope = normalizeChatEnvelope(apiResponse);
+
+      if (!envelope.answered || !envelope.response) {
+        throw new Error(envelope.error || 'Assistant did not return valid data.');
       }
+
+      const turn = buildTurnFromResponse(baseQuery, envelope.response);
+      setTurns((prev) => [turn, ...prev]);
+      setStatusMessage('Response ready.', 'ok');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Query execution failed.';
+      const fallbackResponse: AssistantOrchestratorResponse = {
+        user_id: FIXED_USER_ID,
+        input_query: baseQuery,
+        agent_response: message,
+        capability: 'general',
+      };
+      const failedTurn = buildTurnFromResponse(baseQuery, fallbackResponse, message);
+      setTurns((prev) => [failedTurn, ...prev]);
+      setStatusMessage(message, 'error');
+    } finally {
+      setIsSending(false);
+    }
+  }, [query, setStatusMessage]);
+
+  const clearAll = useCallback(() => {
+    setQuery('');
+    setStatusMessage('Ready', 'ok');
+  }, [setStatusMessage]);
+
+  useEffect(() => {
+    return () => {
+      releaseRecorder();
     };
-    checkHealth();
-  }, [voiceApiBase, setMessage]);
+  }, [releaseRecorder]);
 
   return (
     <PageShell
-      title="Voice AI Assistant"
-      subtitle="Chat with your financial assistant using voice"
+      title="Assistant"
+      subtitle="Your AI finance assistant for bookkeeping, deadlines, and report guidance."
     >
       <style>{styles}</style>
 
-      <div className="voice-assistant-container">
-        {/* Main Agent Panel */}
-        <section className="panel agent-panel" aria-labelledby="agentTitle">
-          <div className="panel-head">
-            <div>
-              <h2 id="agentTitle">Voice Agent</h2>
-              <p>Speak with your AI financial assistant</p>
-            </div>
-            <span className="tag">Voice Chat</span>
+      <div className="assistant-canvas">
+        <section className="assistant-pane ask-pane" aria-labelledby="assistantInputTitle">
+          <div className="assistant-pane-head">
+            <h2 className="assistant-pane-title" id="assistantInputTitle">
+              <Send size={15} /> Ask
+            </h2>
           </div>
 
-          <div className="body agent-layout">
-            {/* Controls */}
-            <div className="agent-controls">
-              <div className="controls-section">
-                <div className="form-group">
-                  <label htmlFor="agentLanguage">Language</label>
-                  <select
-                    id="agentLanguage"
-                    value={selectedLanguage}
-                    onChange={(e) => setSelectedLanguage(e.target.value)}
-                  >
-                    <option value="en-IN">English (India)</option>
-                    <option value="hi-IN">Hindi</option>
-                    <option value="mr-IN">Marathi</option>
-                    <option value="ta-IN">Tamil</option>
-                    <option value="te-IN">Telugu</option>
-                    <option value="kn-IN">Kannada</option>
-                    <option value="ml-IN">Malayalam</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="agentTurnSeconds">Turn Duration (seconds)</label>
-                  <input
-                    id="agentTurnSeconds"
-                    type="number"
-                    min="2"
-                    max="30"
-                    value={turnSeconds}
-                    onChange={(e) => setTurnSeconds(Math.max(2, Math.min(30, parseInt(e.target.value) || 6)))}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Audio Meter</label>
-                  <div className="meter">
-                    <span style={{ width: `${meterWidth}%` }} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="actions">
-                <button
-                  className="button primary"
-                  onClick={startAgent}
-                  disabled={recording}
-                >
-                  Start
-                </button>
-                <button
-                  className="button secondary"
-                  onClick={stopRecording}
-                  disabled={!recording}
-                >
-                  Stop
-                </button>
-                <button
-                  className="button danger"
-                  onClick={stopAgent}
-                  disabled={!recording}
-                >
-                  End
-                </button>
-              </div>
-
-              <div className="actions">
-                <button
-                  className="button secondary"
-                  onClick={resetAgent}
-                  disabled={conversation.length === 0}
-                >
-                  Clear
-                </button>
-              </div>
-
-              <div className={`message ${statusType}`}>{status}</div>
-
-              <audio ref={audioRefRef} />
+          <div className="assistant-pane-body">
+            <div className="assistant-field">
+              <label htmlFor="assistantQuery">Prompt</label>
+              <textarea
+                id="assistantQuery"
+                className="assistant-textarea"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Example: show me the last 10 transactions"
+              />
             </div>
 
-            {/* Conversation */}
-            <div
-              ref={conversationRef}
-              className="conversation"
-            >
-              {conversation.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                  Your voice conversation will appear here
-                </div>
-              ) : (
-                conversation.map((msg, idx) => (
-                  <div key={idx} className={`turn ${msg.role}`}>
-                    <strong>
-                      {msg.role === 'user' ? 'You' : 'Assistant'} · {idx + 1}
-                    </strong>
-                    <p>{msg.content}</p>
-                  </div>
-                ))
-              )}
+            <div className="assistant-actions">
+              <button
+                className={`assistant-btn icon ${isRecording ? 'recording' : ''}`}
+                type="button"
+                onClick={toggleVoiceCapture}
+                disabled={isSending || isTranscribing}
+                aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                title={isRecording ? 'Stop recording' : 'Start recording'}
+              >
+                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+              <button
+                className="assistant-btn primary"
+                type="button"
+                onClick={runAssistantQuery}
+                disabled={isSending || isTranscribing}
+              >
+                <Send size={14} style={{ marginRight: 6 }} />
+                {isSending ? 'Running...' : 'Run Query'}
+              </button>
+              <button
+                className="assistant-btn secondary"
+                type="button"
+                onClick={clearAll}
+                disabled={isSending || isRecording}
+              >
+                Clear
+              </button>
             </div>
+
+            <div className="assistant-features" aria-label="assistant features">
+              <span className="assistant-feature-chip">Transaction Insights</span>
+              <span className="assistant-feature-chip">Deadline Tracking</span>
+              <span className="assistant-feature-chip">Report Guidance</span>
+            </div>
+
+            {(status.kind === 'busy' || status.kind === 'error') && (
+              <p className={`assistant-status ${status.kind}`}>{status.text}</p>
+            )}
           </div>
         </section>
 
-        {/* Text-based Chat Panel */}
-        <section className="panel" aria-labelledby="textChatTitle">
-          <div className="panel-head">
-            <div>
-              <h2 id="textChatTitle">Features</h2>
-              <p>Voice assistant capabilities</p>
-            </div>
-            <span className="tag">Info</span>
+        <section className="assistant-pane response-pane" aria-labelledby="assistantResultsTitle">
+          <div className="assistant-pane-head">
+            <h2 className="assistant-pane-title" id="assistantResultsTitle">Results</h2>
           </div>
 
-          <div className="body">
-            <div className="feature-list">
-              <div>
-                <h3 className="feature-item-title">
-                  Tax & Finance Support
-                </h3>
-                <p className="feature-item-desc">
-                  Ask about ITR filing, deductions, GST compliance, tax savings strategies, and more.
-                </p>
-              </div>
+          <div className="assistant-pane-body">
+            {!turns.length ? (
+              <p className="results-empty">Run a prompt to see your conversation history.</p>
+            ) : (
+              <div className="turn-list">
+                {turns.map((turn) => (
+                  <article key={turn.id} className="turn-item">
+                    <p className="turn-time">{formatTime(turn.createdAt)}</p>
+                    <p className="turn-query">{turn.query}</p>
+                    {turn.error ? (
+                      <p className="turn-answer error">{turn.answer}</p>
+                    ) : (
+                      <div
+                        className="turn-answer markdown"
+                        dangerouslySetInnerHTML={{ __html: markdown.render(turn.answer || '') }}
+                      />
+                    )}
 
-              <div>
-                <h3 className="feature-item-title">
-                  Multilingual
-                </h3>
-                <p className="feature-item-desc">
-                  Speak in English, Hindi, Marathi, Tamil, Telugu, Kannada, or Malayalam.
-                </p>
+                    <p className="turn-trace">Agent Path: {turn.trace.route}</p>
+                    {turn.trace.queryType && <p className="turn-trace">Query Type: {turn.trace.queryType}</p>}
+                    <p className="turn-trace">Agents Used: {turn.trace.agentsUsed.join(', ')}</p>
+                    <p className="turn-trace">Resources Used: {turn.trace.resourcesUsed.join(', ')}</p>
+                  </article>
+                ))}
               </div>
-
-              <div>
-                <h3 className="feature-item-title">
-                  Natural Conversation
-                </h3>
-                <p className="feature-item-desc">
-                  Get conversational answers with step-by-step guidance for tax compliance.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       </div>

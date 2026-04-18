@@ -234,6 +234,66 @@ def _clean_audio_content_type(content_type: Optional[str]) -> str:
     return content_type.split(";", 1)[0].strip().lower()
 
 
+def _has_sarvam_key() -> bool:
+    return bool(os.getenv("SARVAM_API_KEY") or SARVAM_API_KEY)
+
+
+def _normalize_openai_stt_language(language_code: Optional[str]) -> Optional[str]:
+    if not language_code:
+        return None
+    normalized = str(language_code).strip().lower()
+    if normalized in {"", "auto", "unknown"}:
+        return None
+    return normalized.split("-", 1)[0]
+
+
+async def _transcribe_with_openai_fallback(
+    *,
+    audio_bytes: bytes,
+    filename: Optional[str],
+    content_type: Optional[str],
+    language_code: Optional[str],
+) -> STTResponse:
+    model_name = os.getenv("OPENAI_STT_MODEL", "whisper-1")
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "file": (
+            filename or "audio.webm",
+            audio_bytes,
+            _clean_audio_content_type(content_type),
+        ),
+    }
+
+    normalized_language = _normalize_openai_stt_language(language_code)
+    if normalized_language:
+        payload["language"] = normalized_language
+
+    try:
+        response = await _openai().audio.transcriptions.create(**payload)
+    except OpenAIError as exc:
+        status_code = getattr(exc, "status_code", None) or 502
+        raise HTTPException(status_code=status_code, detail=f"OpenAI STT error: {str(exc)}")
+
+    transcript = ""
+    if hasattr(response, "text"):
+        transcript = str(getattr(response, "text") or "").strip()
+    else:
+        dumped = _sdk_model_dump(response)
+        transcript = str(dumped.get("text") or "").strip()
+
+    if not transcript:
+        raise HTTPException(status_code=502, detail="Speech transcription returned empty text")
+
+    return STTResponse(
+        request_id="openai-fallback",
+        transcript=transcript,
+        language_code=normalized_language,
+        language_probability=None,
+        timestamps=None,
+        diarized_transcript=None,
+    )
+
+
 def _raise_sdk_error(exc: ApiError) -> None:
     status_code = exc.status_code or 502
     detail = exc.body if exc.body is not None else str(exc)
@@ -389,10 +449,13 @@ async def personal_data():
 
 @app.get("/health")
 async def health():
+    sarvam_ready = _has_sarvam_key()
+    openai_ready = bool(os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY)
     return {
         "status": "ok",
-        "sarvam_key_set": bool(os.getenv("SARVAM_API_KEY") or SARVAM_API_KEY),
-        "openai_key_set": bool(os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY),
+        "sarvam_key_set": sarvam_ready,
+        "openai_key_set": openai_ready,
+        "stt_provider": "sarvam" if sarvam_ready else ("openai-fallback" if openai_ready else "unconfigured"),
         "sarvam_sdk": "sarvamai",
     }
 
@@ -413,6 +476,19 @@ async def transcribe_audio(
     Max duration: 30 seconds (use /stt/batch for longer files).
     """
     audio_bytes = await file.read()
+
+    if not _has_sarvam_key():
+        if not (os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY):
+            raise HTTPException(
+                status_code=500,
+                detail="Speech transcription is not configured. Set SARVAM_API_KEY or OPENAI_API_KEY.",
+            )
+        return await _transcribe_with_openai_fallback(
+            audio_bytes=audio_bytes,
+            filename=file.filename,
+            content_type=file.content_type,
+            language_code=language_code,
+        )
 
     kwargs: dict[str, Any] = {
         "model": model,

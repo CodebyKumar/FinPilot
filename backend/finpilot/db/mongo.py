@@ -34,6 +34,16 @@ def get_compliance_calendar_collection():
     return _get_db()["compliance_calendar"]
 
 
+def get_assistant_chat_history_collection():
+    """Return the assistant chat history collection."""
+    return _get_db()["assistant_chat_history"]
+
+
+def get_agent_memories_collection():
+    """Return the durable agent memory collection."""
+    return _get_db()["agent_memories"]
+
+
 def init_db() -> None:
     """
     Perform any one-time database initialisation tasks.
@@ -56,6 +66,9 @@ def init_db() -> None:
         db["jobs"].create_index([("status", ASCENDING), ("created_at", DESCENDING)])
         db["notifications"].create_index([("notification_key", ASCENDING)], unique=True)
         db["invoices"].create_index([("invoice_id", ASCENDING)], unique=True)
+        db["assistant_chat_history"].create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+        db["agent_memories"].create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
+        db["agent_memories"].create_index([("user_id", ASCENDING), ("memory_key", ASCENDING)], sparse=True)
 
         logger.info("Database initialised successfully.")
     except PyMongoError as exc:
