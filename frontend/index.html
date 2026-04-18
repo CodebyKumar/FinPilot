@@ -1329,17 +1329,22 @@
             <button class="btn btn-ghost" onclick="downloadReports()"> Download JSON</button>
           </div>
           <div style="padding-top:1.5rem;">
-<<<<<<< HEAD
             <button class="btn btn-primary" onclick="downloadReportsHTML()">🧾 Download HTML Report</button>
           </div>
           <div style="padding-top:1.5rem;">
             <button class="btn btn-ghost" onclick="analyzeReports()">🧠 Analyze Reports (OpenAI)</button>
-=======
-            <button class="btn btn-primary" onclick="downloadCAPDF()"> Download CA PDF</button>
           </div>
           <div style="padding-top:1.5rem;">
-            <button class="btn btn-ghost" onclick="analyzeReports()"> Analyze Reports</button>
->>>>>>> ea0fdacbb3365092a1ee31fd6925f30ce71d82a6
+            <button class="btn btn-primary" onclick="generateITR1Report()">📋 Generate ITR-1</button>
+          </div>
+          <div style="padding-top:1.5rem;">
+            <button class="btn btn-ghost" onclick="downloadITR1()">⬇️ Download ITR-1 HTML</button>
+          </div>
+          <div style="padding-top:1.5rem;">
+            <button class="btn btn-primary" onclick="generateFinancialReport()">💼 Generate Financial Report</button>
+          </div>
+          <div style="padding-top:1.5rem;">
+            <button class="btn btn-ghost" onclick="downloadFinancialReport()">⬇️ Download Financial Report</button>
           </div>
         </div>
       </div>
@@ -3507,6 +3512,76 @@ async function fetchInsights() {
       showToast('Downloading generated HTML report…', 'success');
     } catch (e) {
       showToast('HTML download failed: ' + e.message, 'error');
+    }
+  }
+
+  async function generateITR1Report() {
+    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+    if (!uid) { showToast('Enter User ID for ITR-1 generation', 'error'); return; }
+    try {
+      showToast('Generating ITR-1 from transaction data…', 'success');
+      const r = await fetch(`${API}/itr1/generate/${uid}`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
+      if (data.status === 'ok') {
+        showToast('ITR-1 generated successfully! Click "Download ITR-1 HTML" to save.', 'success');
+      } else {
+        showToast('ITR-1 generation error: ' + (data.message || 'Unknown error'), 'error');
+      }
+    } catch (e) {
+      showToast('Failed to generate ITR-1: ' + e.message, 'error');
+    }
+  }
+
+  async function downloadITR1() {
+    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+    if (!uid) { showToast('Enter User ID for ITR-1 download', 'error'); return; }
+    try {
+      const a = document.createElement('a');
+      a.href = `${API}/itr1/download/${uid}`;
+      a.download = `ITR-1-${uid}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('ITR-1 HTML downloaded', 'success');
+    } catch (e) {
+      showToast('ITR-1 download failed: ' + e.message, 'error');
+    }
+  }
+
+  async function generateFinancialReport() {
+    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+    if (!uid) { showToast('Enter User ID for Financial Report generation', 'error'); return; }
+    try {
+      showToast('Generating Comprehensive Financial Report…', 'success');
+      const r = await fetch(`${API}/reports/financial/generate/${uid}`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      document.getElementById('reports-raw').textContent = JSON.stringify(data, null, 2);
+      if (data.status === 'ok') {
+        showToast('Financial Report generated! Click "Download Financial Report" to save.', 'success');
+      } else {
+        showToast('Report generation error: ' + (data.message || 'Unknown error'), 'error');
+      }
+    } catch (e) {
+      showToast('Failed to generate Financial Report: ' + e.message, 'error');
+    }
+  }
+
+  async function downloadFinancialReport() {
+    const uid = document.getElementById('reports-uid').value.trim() || USER_ID;
+    if (!uid) { showToast('Enter User ID for Financial Report download', 'error'); return; }
+    try {
+      const a = document.createElement('a');
+      a.href = `${API}/reports/financial/download/${uid}?format=html`;
+      a.download = `Financial-Report-${uid}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('Financial Report HTML downloaded', 'success');
+    } catch (e) {
+      showToast('Financial Report download failed: ' + e.message, 'error');
     }
   }
 

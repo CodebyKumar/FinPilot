@@ -1,0 +1,317 @@
+═══════════════════════════════════════════════════════════════════════════════
+                       COMPREHENSIVE FINANCIAL REPORT
+                                    AY 2025-26
+
+                           Prepared by: Chartered Accountant
+                      Professional Tax & Financial Services Division
+═══════════════════════════════════════════════════════════════════════════════
+
+
+SECTION 1: CLIENT INFORMATION
+─────────────────────────────────────────────────────────────────────────────
+
+Full Name                    : {{client_name}}
+Father's Name               : {{father_name}}
+Date of Birth               : {{dob}}
+PAN                         : {{pan}}
+Aadhaar Number              : {{aadhaar}}
+Residential Status          : {{residence_status}}
+
+CONTACT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+Primary Contact Number      : {{phone}}
+Secondary Contact Number    : {{phone_secondary}}
+Primary Email Address       : {{email}}
+Secondary Email             : {{email_secondary}}
+
+RESIDENTIAL ADDRESS
+─────────────────────────────────────────────────────────────────────────────
+
+Flat / House No.            : {{address_flat}}
+Building / Street           : {{address_building}}, {{address_area}}
+District                    : {{address_district}}
+State                       : {{address_state}}
+PIN Code                    : {{address_pin}}
+Country                     : {{address_country}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 2: INCOME DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+A. SALARY INCOME (Section 17)
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Salary                : ₹ {{salary_gross}}
+Perquisites & Benefits      : ₹ {{perquisites_value}}
+Profit in Lieu of Salary    : ₹ {{profit_in_lieu}}
+                                    ─────────────────────
+TOTAL INCOME FROM SALARIES  : ₹ {{income_salaries}}
+
+
+B. INCOME FROM HOUSE PROPERTY (Section 23-24)
+─────────────────────────────────────────────────────────────────────────────
+
+Property Address            : {{property_address}}
+Property Status             : {{property_status}} (Self-Occupied / Let Out / Deemed Let)
+Rent Receivable             : ₹ {{rent_receivable}}
+Annual Value / Rent         : ₹ {{annual_value}}
+Municipal Taxes Paid        : ₹ {{municipal_tax}}
+Interest on Borrowed Capital: ₹ {{interest_on_capital}}
+Repairs & Maintenance       : ₹ {{repairs_maintenance}}
+Insurance Premium           : ₹ {{insurance_premium}}
+                                    ─────────────────────
+NET INCOME FROM HOUSE PROPERTY : ₹ {{income_house_prop}}
+
+
+C. INCOME FROM OTHER SOURCES (Section 56)
+─────────────────────────────────────────────────────────────────────────────
+
+Interest from Savings Bank  : ₹ {{interest_savings}}
+Dividend from Mutual Funds  : ₹ {{dividend_mutual_funds}}
+Income from Fixed Deposits  : ₹ {{interest_fixed_deposits}}
+Other Income Description    : {{other_income_description}}
+Other Income Amount         : ₹ {{other_income_amount}}
+                                    ─────────────────────
+TOTAL INCOME FROM OTHER SOURCES : ₹ {{income_other_sources}}
+
+
+GROSS TOTAL INCOME SUMMARY
+─────────────────────────────────────────────────────────────────────────────
+
+Income from Salaries        : ₹ {{income_salaries}}
+Income from House Property  : ₹ {{income_house_prop}}
+Income from Other Sources   : ₹ {{income_other_sources}}
+                                    ═════════════════════
+GROSS TOTAL INCOME          : ₹ {{gross_total_income}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 3: DEDUCTIONS & EXEMPTIONS
+─────────────────────────────────────────────────────────────────────────────
+
+CHAPTER VI-A DEDUCTIONS
+─────────────────────────────────────────────────────────────────────────────
+
+Section 80C - Savings Limit                  : ₹ {{deductions_80c}}
+(Life Insurance, EPF, ELSS, Post Office, etc.)
+
+Section 80CCC - Pension Fund                 : ₹ {{deductions_80ccc}}
+
+Section 80CCD - NPS / Notional Account       : ₹ {{deductions_80ccd}}
+
+Section 80D - Health Insurance Premium       : ₹ {{deductions_80d}}
+(Self + Family)
+
+Section 80DD - Disabled Dependent            : ₹ {{deductions_80dd}}
+
+Section 80DDB - Medical Treatment (Seniors) : ₹ {{deductions_80ddb}}
+
+Section 80E - Education Loan Interest        : ₹ {{deductions_80e}}
+
+Section 80G - Charitable Donations           : ₹ {{deductions_80g}}
+
+Section 80GG - Rent Paid                     : ₹ {{deductions_80gg}}
+
+Section 80U - Person with Disability         : ₹ {{deductions_80u}}
+
+Section 80IA - Industrial Undertaking        : ₹ {{deductions_80ia}}
+                                                    ─────────────────────
+TOTAL CHAPTER VI-A DEDUCTIONS               : ₹ {{total_deductions}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 4: TAX COMPUTATION
+─────────────────────────────────────────────────────────────────────────────
+
+INCOME COMPUTATION
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Total Income                          : ₹ {{gross_total_income}}
+Less: Chapter VI-A Deductions                : ₹ {{total_deductions}}
+                                                    ─────────────────────
+TAXABLE INCOME                              : ₹ {{taxable_income}}
+
+
+TAX LIABILITY CALCULATION
+─────────────────────────────────────────────────────────────────────────────
+
+Income Tax on Taxable Income                : ₹ {{tax_payable}}
+Health & Education Cess (4%)                : ₹ {{health_cess}}
+Interest u/s 234A (Late Filing)             : ₹ {{interest_234a}}
+Interest u/s 234B (Installment Default)     : ₹ {{interest_234b}}
+Interest u/s 234C (Advance Tax Default)     : ₹ {{interest_234c}}
+Fee u/s 234F (Late Filing / No PAN)         : ₹ {{fee_234f}}
+                                                    ─────────────────────
+TOTAL TAX LIABILITY                         : ₹ {{total_tax_liability}}
+
+
+TAX PAID & REFUND / PAYABLE
+─────────────────────────────────────────────────────────────────────────────
+
+Total Tax Deducted at Source (TDS)          : ₹ {{tds_credit}}
+Advance Tax Paid                            : ₹ {{advance_tax_paid}}
+Self-Assessment Tax Paid                    : ₹ {{self_assessment_tax}}
+                                                    ─────────────────────
+TOTAL TAX PAID DURING YEAR                  : ₹ {{total_taxes_paid}}
+
+Total Tax Liability                         : ₹ {{total_tax_liability}}
+Less: Total Tax Paid                        : ₹ {{total_taxes_paid}}
+                                                    ─────────────────────
+
+[IF POSITIVE → REFUNDABLE] REFUND / AMOUNT  : ₹ {{refund_amount}}
+[IF NEGATIVE → PAYABLE]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 5: BANK & PAYMENT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+BANK ACCOUNT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+Bank Account #1
+─────────────────────────────────────────────────────────────────────────────
+Bank Name                   : {{bank_name_1}}
+IFSC Code                   : {{bank_ifsc_1}}
+Account Number              : {{bank_account_1}}
+Account Type                : {{bank_type_1}}
+
+Bank Account #2
+─────────────────────────────────────────────────────────────────────────────
+Bank Name                   : {{bank_name_2}}
+IFSC Code                   : {{bank_ifsc_2}}
+Account Number              : {{bank_account_2}}
+Account Type                : {{bank_type_2}}
+
+
+TDS DETAILS (Form 16 / Form 16A)
+─────────────────────────────────────────────────────────────────────────────
+
+Deductor Name               : {{tds_deductor_name}}
+TAN (Tax Deductor Account No.) : {{tds_tan}}
+Section Under Which TDS Deducted : {{tds_section}}
+Gross Amount of Payment      : ₹ {{tds_gross_payment}}
+TDS Deducted                : ₹ {{tds_deducted}}
+TDS Credit Claimed          : ₹ {{tds_credit}}
+
+Period of TDS Deduction
+  From                      : {{tds_period_from}}
+  To                        : {{tds_period_to}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 6: FINANCIAL INSIGHTS & ANALYSIS
+─────────────────────────────────────────────────────────────────────────────
+
+KEY FINANCIAL METRICS
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Total Income          : ₹ {{gross_total_income}}
+Effective Deduction Rate    : {{deduction_rate}}%
+Taxable Income              : ₹ {{taxable_income}}
+Effective Tax Rate          : {{effective_tax_rate}}%
+Tax Payable                 : ₹ {{tax_payable}}
+Health Cess (4%)            : ₹ {{health_cess}}
+
+
+FINANCIAL INSIGHTS & OBSERVATIONS
+─────────────────────────────────────────────────────────────────────────────
+
+1. {{insight_title_1}}
+   {{insight_detail_1}}
+
+2. {{insight_title_2}}
+   {{insight_detail_2}}
+
+3. {{insight_title_3}}
+   {{insight_detail_3}}
+
+4. {{insight_title_4}}
+   {{insight_detail_4}}
+
+
+RECOMMENDATIONS FOR TAX OPTIMIZATION
+─────────────────────────────────────────────────────────────────────────────
+
+✓ {{recommendation_1}}
+
+✓ {{recommendation_2}}
+
+✓ {{recommendation_3}}
+
+✓ {{recommendation_4}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 7: DECLARATION & VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+ASSESSEE DECLARATION
+─────────────────────────────────────────────────────────────────────────────
+
+I/We, {{assessee_name}}, son/daughter of {{father_name}}, solemnly declare 
+that the information provided in this financial report is true, complete, 
+and accurate to the best of my/our knowledge and belief. I/We have reviewed 
+all financial records and confirm the income, deductions, and tax computation 
+as detailed above.
+
+I/We declare that:
+
+• The income reported is based on reliable records and evidence
+• All deductions claimed are in accordance with the Income Tax Act, 1961
+• No income has been concealed or misrepresented
+• All bank account details are current and accurate
+• The tax computation is correct as per the applicable tax laws
+
+
+DETAILS OF CERTIFYING CHARTERED ACCOUNTANT
+─────────────────────────────────────────────────────────────────────────────
+
+CA Name                     : {{ca_name}}
+CA Registration Number      : {{ca_regn_no}}
+CA Membership Number        : {{ca_membership_no}}
+CA Email                    : {{ca_email}}
+CA Phone Number             : {{ca_phone}}
+CA Firm Name                : {{ca_firm_name}}
+
+
+VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+Assessee Name               : {{assessee_name}}
+Capacity                    : {{capacity}}
+Date of Report              : {{report_date}}
+Place of Verification       : {{report_place}}
+
+
+─────────────────────────────────────────────────────────────────────────────
+
+                              Assessee Signature
+
+                                    
+                              CA Signature & Seal
+
+                                    
+
+─────────────────────────────────────────────────────────────────────────────
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DISCLAIMER:
+
+This report is prepared based on information and documents provided by the 
+assessee. The Chartered Accountant assumes no liability for any errors, 
+omissions, or misrepresentations in the data supplied. The assessee is 
+responsible for the accuracy and completeness of information furnished.
+
+This report is CONFIDENTIAL and intended solely for the personal use of the 
+assessee. Reproduction, distribution, or disclosure to any third party 
+without written consent is strictly prohibited.
+
+For any queries or clarifications regarding this report, please contact the 
+undersigned Chartered Accountant.
+
+═══════════════════════════════════════════════════════════════════════════════

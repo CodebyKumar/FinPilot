@@ -1,0 +1,317 @@
+═══════════════════════════════════════════════════════════════════════════════
+                       COMPREHENSIVE FINANCIAL REPORT
+                                    AY 2025-26
+
+                           Prepared by: Chartered Accountant
+                      Professional Tax & Financial Services Division
+═══════════════════════════════════════════════════════════════════════════════
+
+
+SECTION 1: CLIENT INFORMATION
+─────────────────────────────────────────────────────────────────────────────
+
+Full Name                    : {{client_name}}
+Father's Name               : Vikram Singh
+Date of Birth               : 1985-06-15
+PAN                         : ABCDE1234F
+Aadhaar Number              : 123456789012
+Residential Status          : Resident
+
+CONTACT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+Primary Contact Number      : {{phone}}
+Secondary Contact Number    : {{phone_secondary}}
+Primary Email Address       : {{email}}
+Secondary Email             : rajesh.k.singh@company.com
+
+RESIDENTIAL ADDRESS
+─────────────────────────────────────────────────────────────────────────────
+
+Flat / House No.            : 404
+Building / Street           : Shivalik Heights, Sector 8
+District                    : Bangalore
+State                       : Karnataka
+PIN Code                    : 560023
+Country                     : India
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 2: INCOME DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+A. SALARY INCOME (Section 17)
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Salary                : ₹ 850000
+Perquisites & Benefits      : ₹ 25000
+Profit in Lieu of Salary    : ₹ 0
+                                    ─────────────────────
+TOTAL INCOME FROM SALARIES  : ₹ 822600
+
+
+B. INCOME FROM HOUSE PROPERTY (Section 23-24)
+─────────────────────────────────────────────────────────────────────────────
+
+Property Address            : {{property_address}}
+Property Status             : {{property_status}} (Self-Occupied / Let Out / Deemed Let)
+Rent Receivable             : ₹ {{rent_receivable}}
+Annual Value / Rent         : ₹ {{annual_value}}
+Municipal Taxes Paid        : ₹ {{municipal_tax}}
+Interest on Borrowed Capital: ₹ {{interest_on_capital}}
+Repairs & Maintenance       : ₹ {{repairs_maintenance}}
+Insurance Premium           : ₹ {{insurance_premium}}
+                                    ─────────────────────
+NET INCOME FROM HOUSE PROPERTY : ₹ {{income_house_prop}}
+
+
+C. INCOME FROM OTHER SOURCES (Section 56)
+─────────────────────────────────────────────────────────────────────────────
+
+Interest from Savings Bank  : ₹ {{interest_savings}}
+Dividend from Mutual Funds  : ₹ 8500
+Income from Fixed Deposits  : ₹ {{interest_fixed_deposits}}
+Other Income Description    : {{other_income_description}}
+Other Income Amount         : ₹ {{other_income_amount}}
+                                    ─────────────────────
+TOTAL INCOME FROM OTHER SOURCES : ₹ 23500
+
+
+GROSS TOTAL INCOME SUMMARY
+─────────────────────────────────────────────────────────────────────────────
+
+Income from Salaries        : ₹ 822600
+Income from House Property  : ₹ {{income_house_prop}}
+Income from Other Sources   : ₹ 23500
+                                    ═════════════════════
+GROSS TOTAL INCOME          : ₹ 846100
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 3: DEDUCTIONS & EXEMPTIONS
+─────────────────────────────────────────────────────────────────────────────
+
+CHAPTER VI-A DEDUCTIONS
+─────────────────────────────────────────────────────────────────────────────
+
+Section 80C - Savings Limit                  : ₹ 150000
+(Life Insurance, EPF, ELSS, Post Office, etc.)
+
+Section 80CCC - Pension Fund                 : ₹ 0
+
+Section 80CCD - NPS / Notional Account       : ₹ 0
+
+Section 80D - Health Insurance Premium       : ₹ 25000
+(Self + Family)
+
+Section 80DD - Disabled Dependent            : ₹ 0
+
+Section 80DDB - Medical Treatment (Seniors) : ₹ 0
+
+Section 80E - Education Loan Interest        : ₹ 0
+
+Section 80G - Charitable Donations           : ₹ 10000
+
+Section 80GG - Rent Paid                     : ₹ 0
+
+Section 80U - Person with Disability         : ₹ 0
+
+Section 80IA - Industrial Undertaking        : ₹ {{deductions_80ia}}
+                                                    ─────────────────────
+TOTAL CHAPTER VI-A DEDUCTIONS               : ₹ 185000
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 4: TAX COMPUTATION
+─────────────────────────────────────────────────────────────────────────────
+
+INCOME COMPUTATION
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Total Income                          : ₹ 846100
+Less: Chapter VI-A Deductions                : ₹ 185000
+                                                    ─────────────────────
+TAXABLE INCOME                              : ₹ {{taxable_income}}
+
+
+TAX LIABILITY CALCULATION
+─────────────────────────────────────────────────────────────────────────────
+
+Income Tax on Taxable Income                : ₹ {{tax_payable}}
+Health & Education Cess (4%)                : ₹ 7933
+Interest u/s 234A (Late Filing)             : ₹ 0
+Interest u/s 234B (Installment Default)     : ₹ 0
+Interest u/s 234C (Advance Tax Default)     : ₹ 0
+Fee u/s 234F (Late Filing / No PAN)         : ₹ 0
+                                                    ─────────────────────
+TOTAL TAX LIABILITY                         : ₹ {{total_tax_liability}}
+
+
+TAX PAID & REFUND / PAYABLE
+─────────────────────────────────────────────────────────────────────────────
+
+Total Tax Deducted at Source (TDS)          : ₹ 95000
+Advance Tax Paid                            : ₹ {{advance_tax_paid}}
+Self-Assessment Tax Paid                    : ₹ {{self_assessment_tax}}
+                                                    ─────────────────────
+TOTAL TAX PAID DURING YEAR                  : ₹ 95000
+
+Total Tax Liability                         : ₹ {{total_tax_liability}}
+Less: Total Tax Paid                        : ₹ 95000
+                                                    ─────────────────────
+
+[IF POSITIVE → REFUNDABLE] REFUND / AMOUNT  : ₹ 7735
+[IF NEGATIVE → PAYABLE]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 5: BANK & PAYMENT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+BANK ACCOUNT DETAILS
+─────────────────────────────────────────────────────────────────────────────
+
+Bank Account #1
+─────────────────────────────────────────────────────────────────────────────
+Bank Name                   : State Bank of India
+IFSC Code                   : SBIN0001456
+Account Number              : 12345678901234
+Account Type                : Savings
+
+Bank Account #2
+─────────────────────────────────────────────────────────────────────────────
+Bank Name                   : 
+IFSC Code                   : 
+Account Number              : 
+Account Type                : 
+
+
+TDS DETAILS (Form 16 / Form 16A)
+─────────────────────────────────────────────────────────────────────────────
+
+Deductor Name               : ABC Corporation Ltd
+TAN (Tax Deductor Account No.) : AAAA01234B
+Section Under Which TDS Deducted : 192
+Gross Amount of Payment      : ₹ 850000
+TDS Deducted                : ₹ 95000
+TDS Credit Claimed          : ₹ 95000
+
+Period of TDS Deduction
+  From                      : 01-04-2025
+  To                        : 31-03-2026
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 6: FINANCIAL INSIGHTS & ANALYSIS
+─────────────────────────────────────────────────────────────────────────────
+
+KEY FINANCIAL METRICS
+─────────────────────────────────────────────────────────────────────────────
+
+Gross Total Income          : ₹ 846100
+Effective Deduction Rate    : {{deduction_rate}}%
+Taxable Income              : ₹ {{taxable_income}}
+Effective Tax Rate          : {{effective_tax_rate}}%
+Tax Payable                 : ₹ {{tax_payable}}
+Health Cess (4%)            : ₹ 7933
+
+
+FINANCIAL INSIGHTS & OBSERVATIONS
+─────────────────────────────────────────────────────────────────────────────
+
+1. {{insight_title_1}}
+   {{insight_detail_1}}
+
+2. {{insight_title_2}}
+   {{insight_detail_2}}
+
+3. {{insight_title_3}}
+   {{insight_detail_3}}
+
+4. {{insight_title_4}}
+   {{insight_detail_4}}
+
+
+RECOMMENDATIONS FOR TAX OPTIMIZATION
+─────────────────────────────────────────────────────────────────────────────
+
+✓ {{recommendation_1}}
+
+✓ {{recommendation_2}}
+
+✓ {{recommendation_3}}
+
+✓ {{recommendation_4}}
+
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 7: DECLARATION & VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+ASSESSEE DECLARATION
+─────────────────────────────────────────────────────────────────────────────
+
+I/We, Rajesh Kumar Singh, son/daughter of Vikram Singh, solemnly declare 
+that the information provided in this financial report is true, complete, 
+and accurate to the best of my/our knowledge and belief. I/We have reviewed 
+all financial records and confirm the income, deductions, and tax computation 
+as detailed above.
+
+I/We declare that:
+
+• The income reported is based on reliable records and evidence
+• All deductions claimed are in accordance with the Income Tax Act, 1961
+• No income has been concealed or misrepresented
+• All bank account details are current and accurate
+• The tax computation is correct as per the applicable tax laws
+
+
+DETAILS OF CERTIFYING CHARTERED ACCOUNTANT
+─────────────────────────────────────────────────────────────────────────────
+
+CA Name                     : {{ca_name}}
+CA Registration Number      : {{ca_regn_no}}
+CA Membership Number        : {{ca_membership_no}}
+CA Email                    : {{ca_email}}
+CA Phone Number             : {{ca_phone}}
+CA Firm Name                : {{ca_firm_name}}
+
+
+VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+Assessee Name               : Rajesh Kumar Singh
+Capacity                    : Individual
+Date of Report              : {{report_date}}
+Place of Verification       : {{report_place}}
+
+
+─────────────────────────────────────────────────────────────────────────────
+
+                              Assessee Signature
+
+                                    
+                              CA Signature & Seal
+
+                                    
+
+─────────────────────────────────────────────────────────────────────────────
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DISCLAIMER:
+
+This report is prepared based on information and documents provided by the 
+assessee. The Chartered Accountant assumes no liability for any errors, 
+omissions, or misrepresentations in the data supplied. The assessee is 
+responsible for the accuracy and completeness of information furnished.
+
+This report is CONFIDENTIAL and intended solely for the personal use of the 
+assessee. Reproduction, distribution, or disclosure to any third party 
+without written consent is strictly prohibited.
+
+For any queries or clarifications regarding this report, please contact the 
+undersigned Chartered Accountant.
+
+═══════════════════════════════════════════════════════════════════════════════

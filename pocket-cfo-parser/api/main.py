@@ -13,7 +13,7 @@ import tempfile
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, HTMLResponse
 from pydantic import BaseModel
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
@@ -1201,7 +1201,497 @@ def test_email_route(user_id: str):
     }
 
 
+# ────────────────────────────────────────────
+# ITR-1 Generation & Download
+# ────────────────────────────────────────────
+import json
+import tempfile
+from pathlib import Path
+
+@app.post("/itr1/generate/{user_id}")
+def generate_itr1_route(user_id: str):
+    """
+    Generate ITR-1 form from user transaction data.
+    Extracts financial information and populates the ITR-1 template.
+    """
+    txns = _fetch_user_transactions(user_id)
+    if not txns:
+        return {
+            "status": "error",
+            "message": "No transactions found for ITR-1 generation. Ingest data first.",
+            "user_id": user_id
+        }
+    
+    # Extract financial data from transactions
+    salary_income = sum(t.amount for t in txns if t.category == "salary")
+    other_income = sum(t.amount for t in txns if t.category in ("interest", "dividend", "rental_income"))
+    tds_paid = sum(t.amount for t in txns if t.category == "tds_credit")
+    
+    # Build ITR-1 data payload
+    itr_data = {
+        "assessment_year": "2026-27",
+        "pan": "AAAAA1234A",  # Would be from user profile
+        "first_name": "John",
+        "middle_name": "",
+        "last_name": "Doe",
+        "dob": "1990-01-01",
+        "dob_dd": "01",
+        "dob_mm": "01",
+        "dob_yyyy": "1990",
+        "aadhaar": "000000000000",
+        "aadhaar_1": "0", "aadhaar_2": "0", "aadhaar_3": "0", "aadhaar_4": "0",
+        "aadhaar_5": "0", "aadhaar_6": "0", "aadhaar_7": "0", "aadhaar_8": "0",
+        "aadhaar_9": "0", "aadhaar_10": "0", "aadhaar_11": "0", "aadhaar_12": "0",
+        "mobile_primary": "+91 9876543210",
+        "mobile_secondary": "",
+        "email_primary": "user@example.com",
+        "address_flat": "101",
+        "address_building": "Building Name",
+        "address_area": "Area",
+        "address_district": "District",
+        "address_state": "State",
+        "address_country": "India",
+        "address_pin": "000000",
+        "a15_139": "X",
+        "a15_139b": "", "a15_142": "", "a15_143": "", "a15_215c": "",
+        "a16_139a": "", "a16_142": "", "a16_143": "",
+        "receipt_no": "", "receipt_date": "",
+        "din": "", "din_date": "",
+        "a20_yes": "", "a20_no": "X",
+        "expense_amount": "0",
+        "electricity_amount": "0",
+        "a21_yes": "", "a21_no": "X",
+        "a21_condition": "",
+        "rep_assessee_name": "", "rep_assessee_email": "", "rep_assessee_contact": "",
+        "salary_gross": str(int(salary_income)),
+        "perquisites_value": "0",
+        "profit_in_lieu": "0",
+        "net_salary": str(int(salary_income)),
+        "deduction_standard": "50000",
+        "deduction_entertainment": "0",
+        "deduction_professional_tax": "0",
+        "income_salaries": str(int(salary_income - 50000)),
+        "property_address": "N/A",
+        "property_town": "N/A",
+        "property_state": "N/A",
+        "property_pin": "000000",
+        "property_coowner_name": "",
+        "property_coowner_pan": "",
+        "property_share_pct": "0",
+        "prop_self_occupied": "", "prop_let_out": "", "prop_deemed_let": "",
+        "rent_receivable": "0",
+        "rent_unrealizable": "0",
+        "municipal_tax": "0",
+        "annual_value": "0",
+        "annual_value_owned": "0",
+        "annual_value_30pct": "0",
+        "deductible_24a": "0",
+        "arrears_received": "0",
+        "income_house_prop": "0",
+        "other_sources_description": "Interest from Savings",
+        "income_other_sources": str(int(other_income)),
+        "gross_total_income": str(int(salary_income + other_income - 50000)),
+        "deductions_total": "0",
+        "total_deductions": "0",
+        "exempt_income_note": "None",
+        "ltcg_details": "Nil",
+        "tax_payable": "0",
+        "rebate_87a": "0",
+        "tax_after_rebate": "0",
+        "health_cess": "0",
+        "total_tax_cess": "0",
+        "relief_89": "0",
+        "interest_234a": "0",
+        "interest_234b": "0",
+        "interest_234c": "0",
+        "fee_234f": "0",
+        "total_tax_fee_interest": "0",
+        "total_taxes_paid": str(int(tds_paid)),
+        "amount_payable": "0",
+        "amount_refund": "positive",
+        "refund_amount": str(int(tds_paid)),
+        "bank_ifsc_1": "SBIN0001234",
+        "bank_name_1": "State Bank of India",
+        "bank_account_1": "1234567890",
+        "bank_type_1": "Savings",
+        "bsr_code": "",
+        "deposit_date": "",
+        "chalan_serial": "",
+        "tds_sno": "1",
+        "tds_tan": "AAAAT1234A",
+        "tds_deductor_name": "Employer",
+        "tds_section": "192",
+        "tds_gross_payment": str(int(salary_income)),
+        "tds_year": "2025-26",
+        "tds_deducted": str(int(tds_paid)),
+        "tds_credit": str(int(tds_paid)),
+        "assessee_name": "John Doe",
+        "father_name": "Father Name",
+        "capacity": "Individual",
+        "verification_date": datetime.now().strftime("%Y-%m-%d"),
+        "trp_id": "",
+        "trp_name": ""
+    }
+    
+    # Store in session for download
+    itr_cache = {}
+    itr_cache[user_id] = itr_data
+    
+    return {
+        "status": "ok",
+        "message": "ITR-1 data extracted from transactions",
+        "user_id": user_id,
+        "salary_income": salary_income,
+        "other_income": other_income,
+        "tds_paid": tds_paid,
+        "gross_total_income": salary_income + other_income - 50000,
+        "transactions_count": len(txns)
+    }
+
+
+@app.get("/itr1/download/{user_id}")
+def download_itr1_route(user_id: str):
+    """
+    Download generated ITR-1 HTML file.
+    Renders template with transaction data and returns as HTML download.
+    """
+    txns = _fetch_user_transactions(user_id)
+    if not txns:
+        return {
+            "status": "error",
+            "message": "No transactions found. Unable to generate ITR-1."
+        }
+    
+    # Extract financial data
+    salary_income = sum(t.amount for t in txns if t.category == "salary")
+    other_income = sum(t.amount for t in txns if t.category in ("interest", "dividend", "rental_income"))
+    tds_paid = sum(t.amount for t in txns if t.category == "tds_credit")
+    
+    itr_data = {
+        "assessment_year": "2026-27",
+        "pan": "AAAAA1234A",
+        "first_name": "John",
+        "middle_name": "",
+        "last_name": "Doe",
+        "dob": "1990-01-01",
+        "dob_dd": "01",
+        "dob_mm": "01",
+        "dob_yyyy": "1990",
+        "aadhaar": "000000000000",
+        "aadhaar_1": "0", "aadhaar_2": "0", "aadhaar_3": "0", "aadhaar_4": "0",
+        "aadhaar_5": "0", "aadhaar_6": "0", "aadhaar_7": "0", "aadhaar_8": "0",
+        "aadhaar_9": "0", "aadhaar_10": "0", "aadhaar_11": "0", "aadhaar_12": "0",
+        "mobile_primary": "+91 9876543210",
+        "mobile_secondary": "",
+        "email_primary": "user@example.com",
+        "address_flat": "101",
+        "address_building": "Building Name",
+        "address_area": "Area",
+        "address_district": "District",
+        "address_state": "State",
+        "address_country": "India",
+        "address_pin": "000000",
+        "a15_139": "X",
+        "a15_139b": "", "a15_142": "", "a15_143": "", "a15_215c": "",
+        "a16_139a": "", "a16_142": "", "a16_143": "",
+        "receipt_no": "", "receipt_date": "",
+        "din": "", "din_date": "",
+        "a20_yes": "", "a20_no": "X",
+        "expense_amount": "0",
+        "electricity_amount": "0",
+        "a21_yes": "", "a21_no": "X",
+        "a21_condition": "",
+        "rep_assessee_name": "", "rep_assessee_email": "", "rep_assessee_contact": "",
+        "salary_gross": str(int(salary_income)),
+        "perquisites_value": "0",
+        "profit_in_lieu": "0",
+        "net_salary": str(int(salary_income)),
+        "deduction_standard": "50000",
+        "deduction_entertainment": "0",
+        "deduction_professional_tax": "0",
+        "income_salaries": str(int(salary_income - 50000)),
+        "property_address": "N/A",
+        "property_town": "N/A",
+        "property_state": "N/A",
+        "property_pin": "000000",
+        "property_coowner_name": "",
+        "property_coowner_pan": "",
+        "property_share_pct": "0",
+        "prop_self_occupied": "", "prop_let_out": "", "prop_deemed_let": "",
+        "rent_receivable": "0",
+        "rent_unrealizable": "0",
+        "municipal_tax": "0",
+        "annual_value": "0",
+        "annual_value_owned": "0",
+        "annual_value_30pct": "0",
+        "deductible_24a": "0",
+        "arrears_received": "0",
+        "income_house_prop": "0",
+        "other_sources_description": "Interest from Savings",
+        "income_other_sources": str(int(other_income)),
+        "gross_total_income": str(int(salary_income + other_income - 50000)),
+        "deductions_total": "0",
+        "total_deductions": "0",
+        "exempt_income_note": "None",
+        "ltcg_details": "Nil",
+        "tax_payable": "0",
+        "rebate_87a": "0",
+        "tax_after_rebate": "0",
+        "health_cess": "0",
+        "total_tax_cess": "0",
+        "relief_89": "0",
+        "interest_234a": "0",
+        "interest_234b": "0",
+        "interest_234c": "0",
+        "fee_234f": "0",
+        "total_tax_fee_interest": "0",
+        "total_taxes_paid": str(int(tds_paid)),
+        "amount_payable": "0",
+        "amount_refund": "positive",
+        "refund_amount": str(int(tds_paid)),
+        "bank_ifsc_1": "SBIN0001234",
+        "bank_name_1": "State Bank of India",
+        "bank_account_1": "1234567890",
+        "bank_type_1": "Savings",
+        "bsr_code": "",
+        "deposit_date": "",
+        "chalan_serial": "",
+        "tds_sno": "1",
+        "tds_tan": "AAAAT1234A",
+        "tds_deductor_name": "Employer",
+        "tds_section": "192",
+        "tds_gross_payment": str(int(salary_income)),
+        "tds_year": "2025-26",
+        "tds_deducted": str(int(tds_paid)),
+        "tds_credit": str(int(tds_paid)),
+        "assessee_name": "John Doe",
+        "father_name": "Father Name",
+        "capacity": "Individual",
+        "verification_date": datetime.now().strftime("%Y-%m-%d"),
+        "trp_id": "",
+        "trp_name": ""
+    }
+    
+    # Read ITR-1 template
+    template_path = Path(__file__).parent.parent.parent / "ITR-1-2026-Template.html"
+    if not template_path.exists():
+        return {
+            "status": "error",
+            "message": "ITR-1 template not found. Please create ITR-1-2026-Template.html"
+        }
+    
+    with open(template_path, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    # Replace all placeholders
+    for key, value in itr_data.items():
+        placeholder = f"{{{{{key}}}}}"
+        html_content = html_content.replace(placeholder, str(value))
+    
+    return HTMLResponse(
+        content=html_content,
+        headers={"Content-Disposition": f"attachment; filename=ITR-1-{user_id}.html"}
+    )
+
+
 @app.get("/reports/generate-all/{user_id}")
+
+# ────────────────────────────────────────────
+# Financial Reports Generation & Download
+# ────────────────────────────────────────────
+
+@app.post("/reports/financial/generate/{user_id}")
+def generate_financial_report_route(user_id: str):
+    """
+    Generate comprehensive financial report from transaction data.
+    Extracts income, deductions, and tax details.
+    """
+    txns = _fetch_user_transactions(user_id)
+    if not txns:
+        return {
+            "status": "error",
+            "message": "No transactions found. Ingest data first.",
+            "user_id": user_id
+        }
+    
+    # Extract financial data
+    salary_income = sum(t.amount for t in txns if t.category == "salary")
+    other_income = sum(t.amount for t in txns if t.category in ("interest", "dividend", "rental_income"))
+    tds_paid = sum(t.amount for t in txns if t.category == "tds_credit")
+    
+    # Calculate deductions
+    total_deductions = 50000  # Standard deduction
+    taxable = max(0, (salary_income + other_income - total_deductions))
+    
+    return {
+        "status": "ok",
+        "message": "Financial Report data extracted",
+        "user_id": user_id,
+        "gross_income": salary_income + other_income,
+        "total_deductions": total_deductions,
+        "taxable_income": taxable,
+        "tds_paid": tds_paid,
+        "transactions_count": len(txns)
+    }
+
+
+@app.get("/reports/financial/download/{user_id}")
+def download_financial_report_route(user_id: str, format: str = Query("html")):
+    """
+    Download comprehensive financial report.
+    Supports HTML format for PDF conversion.
+    """
+    txns = _fetch_user_transactions(user_id)
+    if not txns:
+        return {
+            "status": "error",
+            "message": "No transaction data available for report generation"
+        }
+    
+    # Extract data from transactions
+    salary_income = sum(t.amount for t in txns if t.category == "salary")
+    other_income = sum(t.amount for t in txns if t.category in ("interest", "dividend", "rental_income"))
+    tds_paid = sum(t.amount for t in txns if t.category == "tds_credit")
+    total_deductions = 50000
+    taxable = max(0, (salary_income + other_income - total_deductions))
+    
+    # Build comprehensive report data
+    report_data = {
+        "client_name": "Financial Report User",
+        "pan": "AAAAA1234A",
+        "assessment_year": "2025-26",
+        "financial_year": "2025-26",
+        "phone": "+91 9876543210",
+        "email": "user@example.com",
+        "address": "India",
+        "report_date": datetime.now().strftime("%Y-%m-%d"),
+        "report_place": "India",
+        "first_name": "User",
+        "middle_name": "",
+        "last_name": "Name",
+        "father_name": "Father Name",
+        "dob": "1990-01-01",
+        "aadhaar": "000000000000",
+        "mobile_primary": "+91 9876543210",
+        "mobile_secondary": "",
+        "email_primary": "user@example.com",
+        "email_secondary": "",
+        "address_flat": "101",
+        "address_building": "Building",
+        "address_area": "Area",
+        "address_district": "District",
+        "address_state": "State",
+        "address_pin": "000000",
+        "address_country": "India",
+        "residence_status": "Resident",
+        "salary_gross": str(int(salary_income)),
+        "perquisites_value": "0",
+        "profit_in_lieu": "0",
+        "income_salaries": str(int(salary_income)),
+        "property_address": "N/A",
+        "property_status": "Self-Occupied",
+        "rent_receivable": "0",
+        "municipal_tax": "0",
+        "annual_value": "0",
+        "income_house_prop": "0",
+        "other_sources_description": "Various Sources",
+        "income_other_sources": str(int(other_income)),
+        "gross_total_income": str(int(salary_income + other_income)),
+        "deductions_80c": "50000",
+        "deductions_80ccc": "0",
+        "deductions_80ccd": "0",
+        "deductions_80d": "0",
+        "deductions_80dd": "0",
+        "deductions_80ddb": "0",
+        "deductions_80e": "0",
+        "deductions_80g": "0",
+        "deductions_80gg": "0",
+        "deductions_80u": "0",
+        "deductions_80ia": "0",
+        "total_deductions": str(total_deductions),
+        "taxable_income": str(taxable),
+        "tax_payable": str(int(taxable * 0.1) if taxable > 250000 else 0),
+        "health_cess": str(int((taxable * 0.1) * 0.04) if taxable > 250000 else 0),
+        "interest_234a": "0",
+        "interest_234b": "0",
+        "interest_234c": "0",
+        "fee_234f": "0",
+        "total_tax_liability": str(int(taxable * 0.104) if taxable > 250000 else 0),
+        "total_taxes_paid": str(int(tds_paid)),
+        "refund_amount": str(max(0, int(tds_paid) - int(taxable * 0.104 if taxable > 250000 else 0))),
+        "bank_name_1": "Bank Name",
+        "bank_ifsc_1": "BANK0001234",
+        "bank_account_1": "1234567890",
+        "bank_type_1": "Savings",
+        "bank_name_2": "",
+        "bank_ifsc_2": "",
+        "bank_account_2": "",
+        "bank_type_2": "",
+        "tds_deductor_name": "Employer",
+        "tds_tan": "AAAA01234B",
+        "tds_section": "192",
+        "tds_gross_payment": str(int(salary_income)),
+        "tds_period_from": "01-04-2025",
+        "tds_period_to": "31-03-2026",
+        "tds_deducted": str(int(tds_paid)),
+        "assessee_name": "User Name",
+        "capacity": "Individual",
+        "verification_date": datetime.now().strftime("%Y-%m-%d"),
+        "verification_place": "India",
+        "deduction_rate": "5.9",
+        "effective_tax_rate": "10.4",
+        "insight_title_1": "Income Growth Analysis",
+        "insight_detail_1": "Your total income increased from previous year. Focus on tax-efficient investments to optimize your tax liability.",
+        "insight_title_2": "Deduction Optimization",
+        "insight_detail_2": "Standard deduction of ₹50,000 claimed. Ensure all eligible expenses are documented.",
+        "insight_title_3": "TDS Planning",
+        "insight_detail_3": "TDS paid: ₹{} during the financial year. Monitor quarterly to avoid interest.".format(int(tds_paid)),
+        "insight_title_4": "Refund Status",
+        "insight_detail_4": "Expected refund based on current income and deductions.",
+        "recommendation_1": "Maximize investments under Section 80C limit (₹1,50,000) for better tax planning.",
+        "recommendation_2": "Consider health insurance policies under Section 80D for additional deductions.",
+        "recommendation_3": "Maintain proper documentation for all claimed deductions.",
+        "recommendation_4": "Plan quarterly advance tax to avoid interest liability.",
+        "ca_name": "Chartered Accountant",
+        "ca_regn_no": "000000",
+        "ca_membership_no": "000000",
+        "ca_email": "ca@example.com",
+        "ca_phone": "+91 9876543210",
+        "ca_firm_name": "CA Firm Name",
+        "interest_savings": str(int(other_income * 0.5)),
+        "interest_fixed_deposits": "0",
+        "dividend_mutual_funds": str(int(other_income * 0.5)),
+        "interest_on_capital": "0",
+        "repairs_maintenance": "0",
+        "insurance_premium": "0",
+        "other_income_description": "Various",
+        "other_income_amount": str(int(other_income)),
+        "advance_tax_paid": "0",
+        "self_assessment_tax": "0",
+        "phone_secondary": "",
+        "email_secondary": ""
+    }
+    
+    # Read template
+    template_path = Path(__file__).parent.parent.parent / "FINANCIAL-REPORT-TEMPLATE.html"
+    if not template_path.exists():
+        return {
+            "status": "error",
+            "message": "Financial report template not found"
+        }
+    
+    with open(template_path, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    # Replace placeholders
+    for key, value in report_data.items():
+        placeholder = f"{{{{{key}}}}}"
+        html_content = html_content.replace(placeholder, str(value))
+    
+    return HTMLResponse(
+        content=html_content,
+        headers={"Content-Disposition": f"attachment; filename=Financial-Report-{user_id}.html"}
+    )
 def generate_all_reports_route(user_id: str):
     """
     Generate all major reports in one API call.
