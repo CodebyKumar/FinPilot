@@ -11,7 +11,7 @@ import uvicorn
 from finpilot import config
 from finpilot.db.mongo import init_db
 
-from finpilot.api.routers import users, ingest, agents
+from finpilot.api.routers import users, ingest, agents, calendar
 from voice_agent import app as voice_agent_app
 
 @asynccontextmanager
