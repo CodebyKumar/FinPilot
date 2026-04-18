@@ -52,7 +52,8 @@ def ingest_pdf(filepath: str, user_id: str) -> list[Transaction]:
     
     saved_count = 0
     for txn in results:
-        classification = classify_transaction(txn)
+        # Keep bulk PDF ingestion deterministic for predictable latency.
+        classification = classify_transaction(txn, allow_ai_fallback=False)
         txn.category = classification.get("category", "Uncategorized")
         txn.sub_category = classification.get("sub_category", "Uncategorized")
         txn.business_nature = classification.get("business_nature", "business")

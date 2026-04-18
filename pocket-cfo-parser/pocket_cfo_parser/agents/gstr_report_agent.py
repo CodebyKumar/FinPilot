@@ -30,7 +30,7 @@ def generate_gstr1_draft(transactions: list[Transaction]) -> dict:
             hsn_sac = getattr(txn, "hsn_sac", "NA") or "NA"
             gst_rate = getattr(txn, "gst_rate", 0.0)
             
-            gst_amount = (txn.amount * gst_rate) / 100
+            gst_amount = (txn.amount * gst_rate) / (100 + gst_rate) if gst_rate > 0 else 0.0
             
             outward_supplies[hsn_sac]["transactions"].append({
                 "date": txn.date.strftime("%d-%m-%Y"),
@@ -82,7 +82,7 @@ def generate_gstr3b_draft(transactions: list[Transaction]) -> dict:
     for txn in transactions:
         if txn.type == "credit":
             gst_rate = getattr(txn, "gst_rate", 0.0)
-            gst_on_sales += (txn.amount * gst_rate) / 100
+            gst_on_sales += (txn.amount * gst_rate) / (100 + gst_rate) if gst_rate > 0 else 0.0
     
     gst_collected = gst_on_sales
     

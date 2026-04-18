@@ -195,7 +195,7 @@ Return JSON with exactly these fields:
 
 
 
-def classify_transaction(transaction: Transaction) -> dict:
+def classify_transaction(transaction: Transaction, allow_ai_fallback: bool = True) -> dict:
     """
     Analyzes a transaction and determines applicable GST parameters 
     based on known party-matching rules or Gemini LLM deduction context.
@@ -228,7 +228,25 @@ def classify_transaction(transaction: Transaction) -> dict:
                 "confidence": 0.9
             }
             
-    # Proceed to intelligence fallback 
+    if not allow_ai_fallback:
+        # Fast deterministic fallback for bulk paths (PDF ingest/report generation).
+        gst_rate = 18.0
+        itc_eligible = False
+        gst_amount = transaction.amount * gst_rate / (100.0 + gst_rate)
+        return {
+            "hsn_sac": "UNKNOWN",
+            "gst_rate": gst_rate,
+            "itc_eligible": itc_eligible,
+            "category": "General Business Expense",
+            "sub_category": "General",
+            "business_nature": "business",
+            "gst_amount": round(gst_amount, 2),
+            "itc_amount": 0.0,
+            "matched_rule": "deterministic-fallback",
+            "confidence": 0.35,
+        }
+
+    # Proceed to intelligence fallback
     gemini_result = _classify_with_openai(transaction.party, transaction.amount)
     
     gst_rate = gemini_result["gst_rate"]
@@ -259,7 +277,7 @@ def analyze_itc_opportunities(transactions: list[Transaction]) -> dict:
         if txn.type != "debit":
             continue
             
-        classification = classify_transaction(txn)
+        classification = classify_transaction(txn, allow_ai_fallback=False)
         
         # Low confidence + Uncategorized indicates missed opportunistic parsing
         if classification["confidence"] <= 0.4 and classification["category"] == "Uncategorized":

@@ -14,11 +14,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import logging
+import smtplib
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from typing import Any
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from xml.etree.ElementTree import Element, SubElement, tostring
+from bson.objectid import ObjectId
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -32,8 +38,78 @@ from pocket_cfo_parser.db.mongo import (
     gst_preflight_collection,
     payables_collection,
     transactions_collection,
+    users_collection,
     vendors_collection,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _compliance_mode() -> str:
+    """Select compliance integration mode from environment (mock/live)."""
+    return os.getenv("COMPLIANCE_MODE", "mock").strip().lower()
+
+
+def _resolve_user_email(user_id: str) -> str | None:
+    """Resolve reminder recipient email from user profile or fallback env."""
+    user_doc = None
+    try:
+        user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        user_doc = users_collection.find_one({"_id": user_id})
+    if not user_doc:
+        user_doc = users_collection.find_one({"user_id": user_id})
+    email = (user_doc or {}).get("email") if isinstance(user_doc, dict) else None
+    if isinstance(email, str) and email.strip():
+        return email.strip()
+    fallback = os.getenv("REMINDER_EMAIL_TO", "").strip()
+    return fallback or None
+
+
+def _send_email_reminder(recipient: str, subject: str, body: str) -> tuple[bool, str]:
+    """Send reminder email via SMTP using environment configuration."""
+    host = os.getenv("SMTP_HOST", "").strip()
+    port = int(os.getenv("SMTP_PORT", "587"))
+    username = os.getenv("SMTP_USERNAME", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "").strip()
+    sender = os.getenv("SMTP_FROM_EMAIL", username).strip()
+    use_tls = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes"}
+
+    logger.info(f"Email send attempt: to={recipient}, from={sender}, host={host}, use_tls={use_tls}")
+
+    if not (host and sender and recipient):
+        msg = f"SMTP not configured (host={bool(host)}, sender={bool(sender)}, recipient={bool(recipient)})"
+        logger.warning(f"Email skipped: {msg}")
+        return False, msg
+
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        logger.info(f"Connecting to SMTP {host}:{port}...")
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            if use_tls:
+                logger.info("Starting TLS...")
+                server.starttls()
+            if username and password:
+                logger.info(f"Logging in as {username}...")
+                server.login(username, password)
+            logger.info(f"Sending email to {recipient}...")
+            server.send_message(msg)
+        logger.info(f"Email sent successfully to {recipient}")
+        return True, "sent"
+    except smtplib.SMTPAuthenticationError as exc:
+        logger.error(f"SMTP auth failed: {exc}")
+        return False, f"auth error: {exc}"
+    except Exception as exc:
+        logger.exception(f"Failed to send email to {recipient}: {exc}")
+        return False, f"error: {exc}"
+
+
+
 
 
 # -----------------------------
@@ -100,13 +176,22 @@ def _hash_payload(payload: dict) -> str:
 
 
 def fetch_aa_financial_data(consent_id: str, session_id: str, user_id: str) -> dict:
-    # Hackathon flow: accepts already structured mock payload from webhook/fetch caller.
-    # This function creates deterministic AA-native transactions for testing.
-    seed_rows = [
-        {"date": datetime.now().date().isoformat(), "amount": 13250.0, "type": "debit", "party": "AWS Singapore", "fi_type": "DEPOSIT"},
-        {"date": datetime.now().date().isoformat(), "amount": 85400.0, "type": "credit", "party": "Customer NEFT", "fi_type": "DEPOSIT"},
-        {"date": datetime.now().date().isoformat(), "amount": 15750.0, "type": "debit", "party": "Slack Billing", "fi_type": "DEPOSIT"},
-    ]
+    mode = _compliance_mode()
+    if mode == "live":
+        provider_base = os.getenv("AA_PROVIDER_BASE_URL", "").strip()
+        if not provider_base:
+            raise RuntimeError("COMPLIANCE_MODE=live requires AA_PROVIDER_BASE_URL")
+        logger.info("AA live mode enabled but provider fetch is not implemented; using webhook payload only.")
+
+    session_doc = aa_sessions_collection.find_one({"consent_id": consent_id}) or {}
+    raw_meta = session_doc.get("raw_meta") or {}
+    seed_rows = raw_meta.get("transactions") if isinstance(raw_meta, dict) else None
+    if not seed_rows:
+        seed_rows = [
+            {"date": datetime.now().date().isoformat(), "amount": 13250.0, "type": "debit", "party": "AWS Singapore", "fi_type": "DEPOSIT"},
+            {"date": datetime.now().date().isoformat(), "amount": 85400.0, "type": "credit", "party": "Customer NEFT", "fi_type": "DEPOSIT"},
+            {"date": datetime.now().date().isoformat(), "amount": 15750.0, "type": "debit", "party": "Slack Billing", "fi_type": "DEPOSIT"},
+        ]
     upserted = 0
     for row in seed_rows:
         payload_hash = _hash_payload(row)
@@ -128,6 +213,7 @@ def fetch_aa_financial_data(consent_id: str, session_id: str, user_id: str) -> d
                 "session_id": session_id,
                 "fi_type": row["fi_type"],
                 "verified": True,
+                "integration_mode": mode,
                 "fetched_at": datetime.now().isoformat(),
                 "payload_hash": payload_hash,
                 "raw": row,
@@ -145,7 +231,12 @@ def fetch_aa_financial_data(consent_id: str, session_id: str, user_id: str) -> d
         {"$set": {"data_status": "FETCHED", "fetched_at": datetime.now().isoformat()}, "$inc": {"fetch_attempts": 1}},
         upsert=True,
     )
-    return {"consent_id": consent_id, "session_id": session_id, "upserted_transactions": upserted}
+    return {
+        "consent_id": consent_id,
+        "session_id": session_id,
+        "integration_mode": mode,
+        "upserted_transactions": upserted,
+    }
 
 
 # -----------------------------
@@ -153,7 +244,10 @@ def fetch_aa_financial_data(consent_id: str, session_id: str, user_id: str) -> d
 # -----------------------------
 
 def verify_msme_vendor(user_id: str, vendor_name: str, pan: str, udyam_number: str | None = None) -> dict:
-    # Placeholder for Decentro/Surepass integration response normalization.
+    mode = _compliance_mode()
+    if mode == "live" and not os.getenv("MSME_PROVIDER_API_KEY"):
+        raise RuntimeError("COMPLIANCE_MODE=live requires MSME_PROVIDER_API_KEY")
+
     enterprise_type = "MICRO" if vendor_name.lower().startswith(("micro", "nano")) else "SMALL"
     record = {
         "user_id": user_id,
@@ -167,7 +261,8 @@ def verify_msme_vendor(user_id: str, vendor_name: str, pan: str, udyam_number: s
             "enterprise_type": enterprise_type,
             "registration_date": "2021-04-01",
             "active_status": "ACTIVE",
-            "source": "mock-msme-api",
+            "source": "live-msme-api" if mode == "live" else "mock-msme-api",
+            "integration_mode": mode,
             "fetched_at": datetime.now().isoformat(),
         },
     }
@@ -416,18 +511,43 @@ def get_deadline_penalty_insights(form_code: str) -> str:
         return f"Standard late fee applies for {form_code}."
 
 
-def schedule_compliance_calendar(user_id: str, entity_type: str, financial_year_end: str) -> dict:
+def _next_advance_tax_due(anchor_date: datetime) -> str:
+    """Return the next advance-tax due date after the anchor date."""
+    cycle = [
+        datetime(anchor_date.year, 6, 15),
+        datetime(anchor_date.year, 9, 15),
+        datetime(anchor_date.year, 12, 15),
+        datetime(anchor_date.year + 1, 3, 15),
+    ]
+    for due in cycle:
+        if due.date() >= anchor_date.date():
+            return due.date().isoformat()
+    return datetime(anchor_date.year + 1, 6, 15).date().isoformat()
+
+
+def schedule_compliance_calendar(
+    user_id: str,
+    entity_type: str,
+    financial_year_end: str,
+    basis_date: str | None = None,
+) -> dict:
     forms = MCA_FORMS_BY_ENTITY.get(entity_type.lower(), ["AOC-4", "MGT-7"])
-    
-    # Add standard tax dates for India
-    now = datetime.now()
-    next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
+    anchor = datetime.now()
+    if basis_date:
+        try:
+            anchor = datetime.fromisoformat(basis_date)
+        except Exception:
+            anchor = datetime.now()
+
+    # Build monthly deadlines from the month implied by extracted transaction data.
+    period_month_start = anchor.replace(day=1)
+    next_month = (period_month_start + timedelta(days=32)).replace(day=1)
     
     standard_forms = [
         {"code": "GSTR-1", "due_date": next_month.replace(day=11).date().isoformat()},
         {"code": "GSTR-3B", "due_date": next_month.replace(day=20).date().isoformat()},
         {"code": "TDS Payment", "due_date": next_month.replace(day=7).date().isoformat()},
-        {"code": "Advance Tax", "due_date": datetime(now.year if now.month <= 3 else now.year + 1, 3, 15).date().isoformat()}
+        {"code": "Advance Tax", "due_date": _next_advance_tax_due(anchor)}
     ]
     
     fy_end = datetime.fromisoformat(financial_year_end)
@@ -457,34 +577,120 @@ def schedule_compliance_calendar(user_id: str, entity_type: str, financial_year_
         "user_id": user_id,
         "entity_type": entity_type,
         "financial_year_end": financial_year_end,
+        "basis_date": anchor.date().isoformat(),
         "reminders": reminders,
+        "sent_notification_keys": [],
+        "last_notified_at": None,
         "created_at": datetime.now().isoformat(),
     }
     compliance_calendar_collection.update_one({"user_id": user_id}, {"$set": doc}, upsert=True)
     return doc
 
 
-def trigger_deadline_notifications(user_id: str) -> dict:
-    """Simulates firing notifications for upcoming deadlines."""
+def trigger_deadline_notifications(user_id: str, run_date: str | None = None, send_all_pending: bool = False) -> dict:
+    """
+    Trigger WhatsApp mock alerts plus optional email reminders.
+    
+    Args:
+        user_id: Target user ID
+        run_date: Override today's date (ISO format)
+        send_all_pending: If True, send all reminders with reminder_date <= today (useful on first schedule)
+    """
     doc = compliance_calendar_collection.find_one({"user_id": user_id})
     if not doc:
+        logger.warning(f"No compliance calendar found for user {user_id}")
         return {"status": "no_calendar"}
-        
+
     today = datetime.now().date().isoformat()
+    if run_date:
+        try:
+            today = datetime.fromisoformat(run_date).date().isoformat()
+        except Exception:
+            today = datetime.now().date().isoformat()
+
     reminders = doc.get("reminders", [])
+    sent_keys = set(doc.get("sent_notification_keys", []))
+    recipient_email = _resolve_user_email(user_id)
+    
+    logger.info(f"Notification trigger: user={user_id}, today={today}, send_all_pending={send_all_pending}, email={recipient_email}")
+    logger.info(f"Total reminders in calendar: {len(reminders)}")
     
     triggered = []
+    email_sent = 0
+    email_failed = 0
+
     for r in reminders:
-        if r.get("reminder_date") == today or (r.get("offset_days") == 3 and r.get("reminder_date") >= today):
-            # Simulate sending WhatsApp / Email
-            triggered.append({
-                "form": r.get("form_code"),
-                "due_date": r.get("due_date"),
-                "channel": "WhatsApp",
-                "message": f"🚨 DEADLINE ALERT: {r.get('form_code')} is due on {r.get('due_date')}. {r.get('penalty_insight')}"
-            })
+        reminder_date = r.get("reminder_date")
+        form_code = r.get("form_code")
+        
+        if send_all_pending:
+            # Send all reminders with reminder_date <= today
+            if reminder_date > today:
+                continue
+        else:
+            # Send only reminders with reminder_date == today
+            if reminder_date != today:
+                continue
+        
+        logger.info(f"Processing reminder: {form_code} on {reminder_date}")
+
+        reminder_key = f"{r.get('form_code')}|{r.get('due_date')}|{r.get('offset_days')}|{r.get('reminder_date')}"
+        if reminder_key in sent_keys:
+            continue
+
+        message = f"🚨 DEADLINE ALERT: {r.get('form_code')} is due on {r.get('due_date')}. {r.get('penalty_insight')}"
+
+        detail = {
+            "form": r.get("form_code"),
+            "due_date": r.get("due_date"),
+            "channel": "WhatsApp",
+            "message": message,
+        }
+
+        if recipient_email:
+            ok_email, email_info = _send_email_reminder(
+                recipient=recipient_email,
+                subject=f"Compliance Reminder: {r.get('form_code')} due {r.get('due_date')}",
+                body=(
+                    f"Hello,\n\n"
+                    f"This is your Pocket CFO compliance reminder.\n"
+                    f"Form: {r.get('form_code')}\n"
+                    f"Due Date: {r.get('due_date')}\n"
+                    f"Reminder Date: {r.get('reminder_date')}\n"
+                    f"Penalty Insight: {r.get('penalty_insight')}\n\n"
+                    f"Regards,\nPocket CFO"
+                ),
+            )
+            detail["email"] = {"sent": ok_email, "recipient": recipient_email, "info": email_info}
+            logger.info(f"Email result for {form_code}: sent={ok_email}, info={email_info}")
+            if ok_email:
+                email_sent += 1
+                sent_keys.add(reminder_key)
+            else:
+                email_failed += 1
+        else:
+            detail["email"] = {"sent": False, "recipient": None, "info": "No user email or REMINDER_EMAIL_TO configured"}
+            logger.warning(f"No email configured for reminder {form_code}")
+
+        triggered.append(detail)
+
+    compliance_calendar_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"sent_notification_keys": sorted(sent_keys), "last_notified_at": datetime.now().isoformat()}},
+        upsert=True,
+    )
+    
+    logger.info(f"Notification summary: triggered={len(triggered)}, email_sent={email_sent}, email_failed={email_failed}")
             
-    return {"user_id": user_id, "notifications_sent": len(triggered), "details": triggered}
+    return {
+        "user_id": user_id,
+        "run_date": today,
+        "notifications_sent": len(triggered),
+        "email_sent": email_sent,
+        "email_failed": email_failed,
+        "details": triggered,
+        "already_notified": max(0, len([r for r in reminders if r.get("reminder_date") == today]) - len(triggered)),
+    }
 
 
 def generate_ca_report_pdf(user_id: str, report_data: dict, output_dir: str) -> str:
@@ -672,11 +878,13 @@ def get_compliance_calendar_events(user_id: str) -> dict:
         events.append({
             "id": f"{r['form_code']}_{r['due_date']}_{r['offset_days']}",
             "title": f"{r['form_code']} Deadline",
-            "start": r["due_date"],
-            "description": f"Due: {r['due_date']}. {r['penalty_insight']}",
-            "category": "deadline",
+            "start": r["reminder_date"],
+            "description": f"Reminder ({r['offset_days']}d before). Due: {r['due_date']}. {r['penalty_insight']}",
+            "category": "reminder",
             "priority": "high" if r["offset_days"] == 0 else "medium" if r["offset_days"] == 3 else "low",
             "form_code": r["form_code"],
+            "reminder_date": r["reminder_date"],
+            "due_date": r["due_date"],
             "penalty_insight": r["penalty_insight"]
         })
     

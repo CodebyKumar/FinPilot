@@ -26,8 +26,8 @@ class Transaction:
     # Python datetime object representing when the transaction occurred
     date: datetime
     
-    # The origin of the parsing record (e.g., sms, pdf, ocr, voice)
-    source: Literal["sms", "pdf", "ocr", "voice"]
+    # The origin of the parsing record (e.g., sms, pdf, aa, ocr, voice)
+    source: Literal["sms", "pdf", "aa", "ocr", "voice"]
     
     # Original unparsed input, mapped for debugging purposes
     raw_text: str
