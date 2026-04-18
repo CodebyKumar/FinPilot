@@ -17,61 +17,52 @@ The goal is to replace the current static HTML frontend with a modular Next.js a
 
 ## 2. Backend Structure Summary
 
-The backend currently centers around these live modules:
+The backend is being consolidated into an execute-first control plane.
 
-### Core entry points
+### Core architecture direction
 
-- `backend/main.py`
-  - FastAPI application entry point
-  - CORS setup
-  - router registration
-  - MongoDB initialization
-  - voice agent mounting
+- one primary endpoint: `POST /execute`
+- minimal supporting endpoints: `GET /jobs/{job_id}`, `POST /ingest/pdf`, `GET /health`
+- existing routes can remain temporarily as compatibility wrappers
+- Mongo remains the primary persistence layer for MVP
 
-### API routers
+### Core backend modules to reuse
 
-- `backend/finpilot/api/routers/users.py`
-  - create/update user profile
-  - profile summary retrieval
-  - transaction listing
-
-- `backend/finpilot/api/routers/ingest.py`
-  - bank statement PDF upload and transaction extraction
-
-- `backend/finpilot/api/routers/agents.py`
-  - orchestration endpoint
-  - dashboard insight endpoints
-  - expense, profit, GST, bookkeeping, reconciliation, tax-savings views
-  - action card generation
-
-- `backend/finpilot/api/routers/calendar.py`
-  - auto compliance calendar generation
-  - compliance event retrieval
-
-### Supporting layers
-
-- `backend/finpilot/agents/`
-  - business intelligence and analysis agents
-- `backend/finpilot/services/`
-  - ingestion and calendar engines
-  - voice agent (STT, TTS, chat) in `voice_agent.py`
+- `backend/finpilot/agents/orchestrator_agent.py`
+- `backend/finpilot/agents/bookkeeping_agent.py`
+- `backend/finpilot/agents/expense_agent.py`
+- `backend/finpilot/agents/profit_agent.py`
+- `backend/finpilot/agents/gst_agent.py`
+- `backend/finpilot/agents/tax_savings_agent.py`
+- `backend/finpilot/agents/reconciliation_agent.py`
+- `backend/finpilot/services/ingestion.py`
+- `backend/finpilot/services/parsers/pdf_parser.py`
+- `backend/finpilot/services/calendar_engine.py`
+- `backend/finpilot/services/voice_agent.py`
 - `backend/finpilot/db/mongo.py`
-  - MongoDB persistence layer
-- `backend/finpilot/config.py`
-  - environment-driven configuration
+- `backend/finpilot/models/transaction.py`
+
+### Task-oriented backend capabilities
+
+- profile lifecycle with reusable tax profile memory
+- bookkeeping ingestion and ledger maintenance
+- report field extraction and report generation
+- report analysis and validation
+- async deadlines and notification workflows
+- domain-constrained assistant workflows
 
 ### What the frontend must support
 
 The UI should expose these product capabilities:
 
-- profile management
+- profile management with secure sensitive-field handling
 - bookkeeping and transaction review
 - invoice and statement upload
-- report generation and field completion
+- report generation and missing-fields completion
 - report analysis and validation
-- deadline tracking and reminders
-- AI assistant chat
-- dashboard insights and action cards
+- deadline tracking and async reminder visibility
+- AI assistant chat (domain-scoped to tax/finance/compliance)
+- async job status tracking for long-running tasks
 
 ---
 
@@ -133,6 +124,7 @@ frontend/
 │   │   │   └── [reportId]/page.tsx
 │   │   ├── deadlines/page.tsx
 │   │   ├── assistant/page.tsx
+│   │   ├── jobs/page.tsx
 │   │   ├── transactions/page.tsx
 │   │   └── settings/page.tsx
 │   └── api/
@@ -191,14 +183,16 @@ frontend/
 │   ├── use-bookkeeping.ts
 │   ├── use-reports.ts
 │   ├── use-deadlines.ts
-│   └── use-assistant.ts
+│   ├── use-assistant.ts
+│   └── use-jobs.ts
 ├── types/
 │   ├── profile.ts
 │   ├── transaction.ts
 │   ├── invoice.ts
 │   ├── report.ts
 │   ├── deadline.ts
-│   └── assistant.ts
+│   ├── assistant.ts
+│   └── job.ts
 ├── styles/
 │   └── tokens.css
 ├── public/
@@ -331,13 +325,9 @@ This is the operational command center for the CFO assistant.
 
 #### Backend endpoints used
 
-- `GET /insights/{user_id}`
-- `GET /actions/{user_id}`
-- `GET /bookkeeping/{user_id}`
-- `GET /profit/{user_id}`
-- `GET /expenses/{user_id}`
-- `GET /tax-savings/{user_id}`
-- `GET /reconciliation/{user_id}`
+- `POST /execute` with task-driven summary fetches
+- compatibility wrappers may still call the same service layer during migration
+- `GET /jobs/{job_id}` for async widget refresh states where needed
 
 #### Recommended widgets
 
@@ -375,15 +365,18 @@ Store and edit reusable identity and business data once, then reuse it across re
 
 #### Backend endpoints used
 
-- `POST /users/create`
-- `GET /users/{user_id}/profile`
-- `POST /users/{user_id}/profile`
+- `POST /execute` with tasks:
+  - `create_profile`
+  - `get_profile`
+  - `update_profile`
+  - `delete_profile`
 
 #### UI detail notes
 
 - use a multi-section form rather than one long page
 - show completion percentage so users know what still needs input
 - surface warnings for missing required tax fields
+- mask sensitive IDs in UI responses (PAN/Aadhaar never shown raw)
 
 ---
 
@@ -416,14 +409,14 @@ Manage statements, invoices, manual entries, and the ledger.
 
 #### Backend endpoints used
 
-- `POST /ingest/pdf`
-- `GET /transactions/{user_id}`
-- future-facing bookkeeping endpoints from the architecture plan:
-  - `POST /bookkeeping/upload-statement`
-  - `POST /bookkeeping/add-entry`
-  - `POST /bookkeeping/upload-invoice`
-  - `GET /bookkeeping/ledger/{user_id}`
-  - `PUT /bookkeeping/update-entry/{entry_id}`
+- `POST /ingest/pdf` (direct file helper for statement upload)
+- `POST /execute` with tasks:
+  - `bookkeeping_upload_statement`
+  - `bookkeeping_upload_invoice`
+  - `bookkeeping_add_entry`
+  - `bookkeeping_update_entry`
+  - `bookkeeping_get_ledger`
+- `GET /jobs/{job_id}` for async parsing and ingestion flows
 
 #### UI detail notes
 
@@ -460,7 +453,8 @@ Provide a dense searchable view of all parsed and manually entered transactions.
 
 #### Backend endpoints used
 
-- `GET /transactions/{user_id}`
+- `POST /execute` with `bookkeeping_get_ledger`
+- compatibility route `GET /transactions/{user_id}` may remain temporarily
 
 ---
 
@@ -491,14 +485,11 @@ Transform profile and ledger data into a structured form or report draft.
 
 #### Backend endpoints used
 
-- future-facing architecture endpoints:
-  - `POST /report/generate`
-  - `POST /report/extract-fields`
-  - `GET /report/status/{report_id}`
-- profile and bookkeeping data sources:
-  - `GET /users/{user_id}/profile`
-  - `GET /bookkeeping/{user_id}`
-  - `GET /transactions/{user_id}`
+- `POST /execute` with tasks:
+  - `report_extract_fields`
+  - `report_generate`
+  - `report_status`
+- `GET /jobs/{job_id}` for async generation states
 
 #### UI detail notes
 
@@ -536,8 +527,9 @@ Validate filled reports before submission.
 
 #### Backend endpoints used
 
-- `POST /report/analyze`
-- `POST /report/validate`
+- `POST /execute` with tasks:
+  - `report_analyze`
+  - `report_validate`
 
 #### UI detail notes
 
@@ -597,12 +589,11 @@ Track compliance deadlines and notifications in a calendar-first layout.
 
 #### Backend endpoints used
 
-- `POST /calendar/auto/{user_id}`
-- `GET /calendar/events/{user_id}`
-- architecture-plan endpoints:
-  - `POST /deadline/add`
-  - `GET /deadline/{user_id}`
-  - `DELETE /deadline/{id}`
+- `POST /execute` with tasks:
+  - `deadline_add`
+  - `deadline_get`
+  - `deadline_delete`
+- `GET /jobs/{job_id}` for async reminder/notification workflows
 
 #### UI detail notes
 
@@ -637,9 +628,15 @@ Provide the user-facing conversational AI experience for tax, finance, and compl
 
 #### Backend endpoints used
 
-- `POST /orchestrate/{user_id}`
-- future-facing architecture endpoint:
-  - `POST /assistant/chat`
+- `POST /execute` with task:
+  - `assistant_chat`
+- optional voice-specific support from `voice_agent.py`:
+  - `POST /chat/completions`
+  - `POST /agent/respond`
+  - `POST /stt/transcribe`
+  - `POST /tts/generate`
+  - `WS /stt/stream`
+  - `WS /tts/stream`
 
 #### UI detail notes
 
@@ -671,6 +668,29 @@ Configure user preferences, reminders, and application behavior.
 - allow configurable reminder rules
 - support future pluggable report formats
 - store app-level preferences cleanly
+
+---
+
+### 5.13 Jobs and Activity Page
+
+- **Route:** `/jobs`
+- **File:** `app/(dashboard)/jobs/page.tsx`
+
+#### UI purpose
+
+Track async task lifecycle for statement parsing, report generation, and deadline automation.
+
+#### UI sections
+
+- running jobs list
+- completed/failed jobs list
+- job detail drawer with errors and warnings
+- retry/cancel actions where allowed
+
+#### Backend endpoints used
+
+- `GET /jobs/{job_id}`
+- `POST /execute` for enqueueing async tasks with `mode: async`
 
 ---
 
@@ -744,14 +764,15 @@ Configure user preferences, reminders, and application behavior.
 
 The frontend should follow this pattern:
 
-1. User opens a page such as Profile, Bookkeeping, or Assistant.
-2. Page fetches backend data through a typed API client.
+1. User opens a page such as Profile, Bookkeeping, Reports, Deadlines, or Assistant.
+2. Page fetches data through a typed API client that targets `POST /execute` tasks.
 3. Data is normalized into page state or React Query cache.
 4. User submits a form or triggers an action.
 5. Frontend validates the payload with Zod.
-6. Request is sent to FastAPI endpoint.
-7. Backend agent/service executes the business logic.
-8. UI updates the page state and shows success, warnings, or errors.
+6. Request is sent to `POST /execute` with `task_name`, `user_id`, `payload`, and `mode`.
+7. If `mode` is `sync`, UI renders immediate `data/errors/warnings` response.
+8. If `mode` is `async`, UI stores `job_id` and polls `GET /jobs/{job_id}` for status.
+9. UI updates workflow state and shows success, warnings, errors, and retry options.
 
 This keeps the frontend thin while preserving agent-driven backend behavior.
 
@@ -761,32 +782,80 @@ This keeps the frontend thin while preserving agent-driven backend behavior.
 
 | Frontend Area | Backend Endpoint |
 | --- | --- |
-| Dashboard summary | `GET /insights/{user_id}` |
-| Action cards | `GET /actions/{user_id}` |
-| Profile view/edit | `POST /users/create`, `GET /users/{user_id}/profile`, `POST /users/{user_id}/profile` |
-| Transaction history | `GET /transactions/{user_id}` |
-| PDF statement upload | `POST /ingest/pdf` |
-| Bookkeeping summary | `GET /bookkeeping/{user_id}` |
-| Expenses diagnostics | `GET /expenses/{user_id}` |
-| Profit analysis | `GET /profit/{user_id}` |
-| GST analysis | `GET /gst/{user_id}` |
-| Reconciliation | `GET /reconciliation/{user_id}` |
-| Tax savings | `GET /tax-savings/{user_id}` |
-| Orchestration chat | `POST /orchestrate/{user_id}` |
-| Calendar generation | `POST /calendar/auto/{user_id}` |
-| Calendar events | `GET /calendar/events/{user_id}` |
-| STT (text from audio) | `POST /stt/transcribe` |
-| STT streaming (real-time) | `WS /stt/stream` |
-| TTS (audio from text) | `POST /tts/generate` |
-| TTS streaming (real-time) | `WS /tts/stream` |
-| Chat completions | `POST /chat/completions` |
-| Voice agent (text + audio) | `POST /agent/respond` |
-| Text translation | `POST /text/translate` |
-| Health check | `GET /health` |
+| Primary workflow execution | `POST /execute` |
+| Async job status | `GET /jobs/{job_id}` |
+| PDF statement upload helper | `POST /ingest/pdf` |
+| Service health | `GET /health` |
+| Profile CRUD | `POST /execute` with `create_profile`, `get_profile`, `update_profile`, `delete_profile` |
+| Bookkeeping flows | `POST /execute` with `bookkeeping_upload_statement`, `bookkeeping_upload_invoice`, `bookkeeping_add_entry`, `bookkeeping_update_entry`, `bookkeeping_get_ledger` |
+| Report generation flows | `POST /execute` with `report_extract_fields`, `report_generate`, `report_status` |
+| Report analysis flows | `POST /execute` with `report_analyze`, `report_validate` |
+| Deadline/calendar flows | `POST /execute` with `deadline_add`, `deadline_get`, `deadline_delete` |
+| Assistant chat | `POST /execute` with `assistant_chat` |
+| Voice assistant support (optional) | `POST /chat/completions`, `POST /agent/respond`, `POST /stt/transcribe`, `POST /tts/generate`, `WS /stt/stream`, `WS /tts/stream` |
+| Compatibility migration period | legacy routes may remain temporarily as wrappers to unified handlers |
 
 ---
 
-## 10. Page UI Guidelines
+## 10. Execute Contract and Task Registry (Frontend Reference)
+
+### 10.1 Request contract (`POST /execute`)
+
+- `task_name`
+- `user_id`
+- `payload`
+- `mode` (`sync` or `async`)
+- `idempotency_key` (optional)
+
+### 10.2 Response contract
+
+- `status` (`success`, `accepted`, `error`)
+- `task_name`
+- `user_id`
+- `data`
+- `errors`
+- `warnings`
+- `correlation_id`
+- `job_id` (when async)
+
+### 10.3 Task registry used by frontend
+
+Profile tasks:
+
+- `create_profile`
+- `get_profile`
+- `update_profile`
+- `delete_profile`
+
+Bookkeeping tasks:
+
+- `bookkeeping_upload_statement`
+- `bookkeeping_upload_invoice`
+- `bookkeeping_add_entry`
+- `bookkeeping_update_entry`
+- `bookkeeping_get_ledger`
+
+Report tasks:
+
+- `report_extract_fields`
+- `report_generate`
+- `report_status`
+- `report_analyze`
+- `report_validate`
+
+Deadline tasks:
+
+- `deadline_add`
+- `deadline_get`
+- `deadline_delete`
+
+Assistant tasks:
+
+- `assistant_chat`
+
+---
+
+## 11. Page UI Guidelines
 
 ### Visual system
 
@@ -812,7 +881,7 @@ This keeps the frontend thin while preserving agent-driven backend behavior.
 
 ---
 
-## 11. Recommended MVP Page Order
+## 12. Recommended MVP Page Order
 
 If building this incrementally, implement in this sequence:
 
@@ -826,29 +895,30 @@ If building this incrementally, implement in this sequence:
 8. report analysis page
 9. deadlines page
 10. assistant page
-11. settings page
+11. jobs and activity page
+12. settings page
 
 This order gets the core finance workflow working first and leaves the assistant and automation polish for later.
 
 ---
 
-## 12. Final Recommendation
+## 13. Final Recommendation
 
 The backend already supports the right building blocks for an AI CFO product:
 
-- user profile persistence
-- transaction ingestion
-- orchestration intelligence
-- bookkeeping analytics
-- report support
-- compliance calendar generation
+- profile persistence and reusable tax identity context
+- statement/invoice/manual bookkeeping workflows
+- report generation and report analysis as separate stages
+- async deadline and notification automation
+- assistant workflows constrained to tax/finance/compliance
 
 The best frontend implementation is a Next.js app with:
 
 - a dashboard shell
 - route-based pages for each CFO workflow
 - reusable form and table components
-- a single typed API client for FastAPI
+- a single typed API client centered on `POST /execute`
+- unified async job UX via `GET /jobs/{job_id}`
 - strong AI workflow states for loading, missing data, and validation
 
-This gives you a production-friendly frontend that matches the agent-driven backend without becoming overly fragmented.
+This gives you a production-friendly frontend that matches the consolidated backend control plane without endpoint sprawl.
