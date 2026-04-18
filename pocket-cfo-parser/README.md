@@ -42,6 +42,27 @@ Parsed transaction data is automatically categorized, mapped to a unified intern
    ```env
    MONGODB_URI=mongodb://localhost:27017
    DB_NAME=pocket_cfo
+   COMPLIANCE_MODE=mock
+   ```
+
+   Optional integration settings for compliance workflows:
+   ```env
+   # Required when COMPLIANCE_MODE=live for AA fetch flow
+   AA_PROVIDER_BASE_URL=https://your-aa-provider.example
+
+   # Required when COMPLIANCE_MODE=live for MSME verification
+   MSME_PROVIDER_API_KEY=your-msme-api-key
+
+   # Optional compliance reminder email fallback recipient
+   REMINDER_EMAIL_TO=owner@example.com
+
+   # Optional SMTP settings for reminder emails
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USERNAME=your-smtp-user
+   SMTP_PASSWORD=your-smtp-password-or-app-password
+   SMTP_FROM_EMAIL=alerts@yourcompany.com
+   SMTP_USE_TLS=true
    ```
 
 ## ▶️ Running the Project

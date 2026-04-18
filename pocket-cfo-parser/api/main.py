@@ -13,8 +13,9 @@ import tempfile
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
+from bson.objectid import ObjectId
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,7 +23,13 @@ load_dotenv()
 
 # Imports from pocket_cfo_parser core logic
 from pocket_cfo_parser.ingestion import ingest_sms, ingest_pdf
-from pocket_cfo_parser.db.mongo import get_transactions_by_user, save_user, save_transaction, compliance_calendar_collection
+from pocket_cfo_parser.db.mongo import (
+    get_transactions_by_user,
+    save_user,
+    save_transaction,
+    compliance_calendar_collection,
+    users_collection,
+)
 from pocket_cfo_parser.models.transaction import Transaction
 from pocket_cfo_parser.agents.expense_agent import get_expense_summary
 from pocket_cfo_parser.agents.profit_agent_v2 import get_profit_summary as get_profit_summary_v2
@@ -34,6 +41,7 @@ from pocket_cfo_parser.agents.financial_statements_agent import get_financial_st
 from pocket_cfo_parser.agents.income_tax_agent import get_income_tax_summary
 from pocket_cfo_parser.agents.reconciliation_agent import get_reconciliation_report
 from pocket_cfo_parser.agents.audit_agent import get_audit_report
+from pocket_cfo_parser.agents.report_html_agent import generate_financial_statement_html
 from pocket_cfo_parser.compliance_engine import (
     W8BENData,
     create_aa_consent,
@@ -150,6 +158,7 @@ class ComplianceCalendarPayload(BaseModel):
     user_id: str
     entity_type: str
     financial_year_end: str
+    basis_date: str | None = None
 
 
 class DRLPayload(BaseModel):
@@ -159,6 +168,10 @@ class DRLPayload(BaseModel):
 
 class ReportAnalyzerPayload(BaseModel):
     user_id: str
+
+
+class ReportHTMLPayload(BaseModel):
+    data: dict
 
 @app.post("/users/create")
 def create_user_route(payload: UserCreatePayload):
@@ -510,7 +523,7 @@ def ca_summary_route(user_id: str):
             "total_expenses": profit_data["overall"]["total_expenses"],
             "profit_margin": profit_data["overall"]["profit_margin_percent"],
             "potential_monthly_savings": tax_data["summary"]["potential_savings_per_month"],
-            "claimable_itc": tax_data["summary"]["potential_savings_per_month"],
+            "claimable_itc": gst_data["gstr_3b"]["section_2_input_tax_credit"]["itc_claimed"],
             "gst_payable": gst_data["gstr_3b"]["section_3_net_payable"]["net_gst_payable"],
             "refund_available": gst_data["gstr_3b"]["section_3_net_payable"]["net_refund_available"],
             "taxable_income": income_tax["taxable_income_summary"]["taxable_income"],
@@ -1051,6 +1064,7 @@ def schedule_calendar_route(payload: ComplianceCalendarPayload):
         user_id=payload.user_id,
         entity_type=payload.entity_type,
         financial_year_end=payload.financial_year_end,
+        basis_date=payload.basis_date,
     )
 
 
@@ -1060,12 +1074,12 @@ def trigger_drl_route(payload: DRLPayload):
 
 
 @app.post("/compliance/calendar/notify/{user_id}")
-def notify_calendar_route(user_id: str):
+def notify_calendar_route(user_id: str, run_date: str | None = Query(default=None)):
     """
     Trigger automated WhatsApp/Email notifications with OpenAI insights 
     for upcoming deadlines.
     """
-    return trigger_deadline_notifications(user_id)
+    return trigger_deadline_notifications(user_id, run_date=run_date)
 
 
 @app.post("/compliance/calendar/auto/{user_id}")
@@ -1073,11 +1087,19 @@ def auto_schedule_calendar_from_transactions_route(user_id: str):
     """
     Auto-schedule compliance calendar from parsed transaction history.
     Uses latest transaction date to infer financial year-end (Mar 31) and
-    defaults entity type to pvt_ltd for hackathon demo.
+    infers entity type from user profile, with pvt_ltd fallback.
     """
     txns = _fetch_user_transactions(user_id)
+    entity_type = "pvt_ltd"
+    try:
+        user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
+        entity_type = (user_doc or {}).get("entity_type", "pvt_ltd")
+    except Exception:
+        entity_type = "pvt_ltd"
+    latest_txn_date_iso = None
     if txns:
         latest_txn_date = max(t.date for t in txns)
+        latest_txn_date_iso = latest_txn_date.date().isoformat()
         fy_year = latest_txn_date.year if latest_txn_date.month <= 3 else latest_txn_date.year + 1
     else:
         now = datetime.now()
@@ -1086,15 +1108,30 @@ def auto_schedule_calendar_from_transactions_route(user_id: str):
     fy_end = f"{fy_year}-03-31"
     result = schedule_compliance_calendar(
         user_id=user_id,
-        entity_type="pvt_ltd",
+        entity_type=entity_type,
         financial_year_end=fy_end,
+        basis_date=latest_txn_date_iso,
     )
+    
+    # Automatically trigger pending reminders. If none are due yet, send the earliest
+    # upcoming reminder once so users see immediate confirmation after auto-schedule.
+    notifications = trigger_deadline_notifications(user_id, send_all_pending=True)
+    immediate_trigger_mode = "pending_only"
+    if notifications.get("notifications_sent", 0) == 0:
+        reminder_dates = sorted({r.get("reminder_date") for r in result.get("reminders", []) if r.get("reminder_date")})
+        if reminder_dates:
+            notifications = trigger_deadline_notifications(user_id, run_date=reminder_dates[0])
+            immediate_trigger_mode = "forced_earliest"
+    
     return {
         "user_id": user_id,
         "derived_from_transactions": True,
-        "entity_type": "pvt_ltd",
+        "basis_date": latest_txn_date_iso,
+        "entity_type": entity_type,
         "financial_year_end": fy_end,
         "calendar": result,
+        "notification_mode": immediate_trigger_mode,
+        "notifications_triggered": notifications,
     }
 
 
@@ -1144,6 +1181,36 @@ def get_compliance_calendar_events_route(user_id: str):
     Useful for integrating with calendar widgets or scheduling apps.
     """
     return get_compliance_calendar_events(user_id)
+
+
+@app.post("/test/email/{user_id}")
+def test_email_route(user_id: str):
+    """
+    Test email sending for debugging purposes.
+    Sends a test email to the user's configured email or REMINDER_EMAIL_TO fallback.
+    """
+    from pocket_cfo_parser.compliance_engine import _resolve_user_email, _send_email_reminder
+    
+    recipient = _resolve_user_email(user_id)
+    if not recipient:
+        return {
+            "status": "failed",
+            "reason": "No email found for user and REMINDER_EMAIL_TO not configured",
+            "user_id": user_id,
+        }
+    
+    ok, msg = _send_email_reminder(
+        recipient=recipient,
+        subject="Pocket CFO Test Email",
+        body="This is a test email from Pocket CFO to verify SMTP configuration is working correctly.",
+    )
+    
+    return {
+        "status": "sent" if ok else "failed",
+        "recipient": recipient,
+        "message": msg,
+        "user_id": user_id,
+    }
 
 
 @app.get("/reports/generate-all/{user_id}")
@@ -1204,7 +1271,21 @@ def download_reports_bundle_route(user_id: str, format: str = Query(default="jso
             json.dump(bundle, f, ensure_ascii=False, indent=2)
         return FileResponse(path, media_type="application/json", filename=filename)
 
-    raise HTTPException(status_code=400, detail="Unsupported format. Use format=json")
+    if format.lower() == "html":
+        filename = f"financial_statement_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        path = os.path.join(out_dir, filename)
+        html = generate_financial_statement_html(bundle)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return FileResponse(path, media_type="text/html", filename=filename)
+
+    raise HTTPException(status_code=400, detail="Unsupported format. Use format=json or format=html")
+
+
+@app.post("/reports/render-html")
+def render_financial_statement_html_route(payload: ReportHTMLPayload):
+    html = generate_financial_statement_html(payload.data)
+    return Response(content=html, media_type="text/html")
 
 
 @app.post("/reports/analyze")
@@ -1271,9 +1352,12 @@ def analyze_reports_route(payload: ReportAnalyzerPayload):
 
     # Optional OpenAI structured analysis augmentation (fallback if not configured)
     ai = {"executive_summary": "", "top_risks": [], "next_actions": []}
+    openai_used = False
+    openai_available = False
     try:
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
+            openai_available = True
             from openai import OpenAI
 
             client = OpenAI(api_key=api_key)
@@ -1297,8 +1381,15 @@ def analyze_reports_route(payload: ReportAnalyzerPayload):
                 ],
             )
             ai = json.loads(resp.choices[0].message.content or "{}") or ai
+            openai_used = True
     except Exception:
         ai = ai
+
+    if not ai.get("executive_summary"):
+        ai["executive_summary"] = (
+            "AI executive summary unavailable. "
+            + ("OpenAI call failed; using rules-based analysis output." if openai_available else "Set OPENAI_API_KEY to enable OpenAI-powered analysis.")
+        )
 
     return {
         "user_id": payload.user_id,
@@ -1309,6 +1400,7 @@ def analyze_reports_route(payload: ReportAnalyzerPayload):
             "executive_summary": ai.get("executive_summary", "") or "",
             "top_risks": ai.get("top_risks", []) or [],
             "next_actions": ai.get("next_actions", []) or [],
+            "openai_used": openai_used,
             "risk_score": risk_score,
             "highlights": highlights,
             "recommendations": recommendations,
