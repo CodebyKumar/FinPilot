@@ -129,16 +129,68 @@ def _notification_subject(notification: dict) -> str:
     return f"Compliance Reminder: {title} (Due {due_date})"
 
 
+def _deadline_details(notification: dict) -> dict:
+    deadline_id = notification.get("deadline_id")
+    user_id = notification.get("user_id")
+    if not deadline_id or not user_id:
+        return {}
+
+    deadline = _deadlines_collection().find_one(
+        {"deadline_id": deadline_id, "user_id": user_id},
+        {"_id": 0},
+    )
+    return deadline or {}
+
+
 def _notification_body(notification: dict) -> str:
+    deadline = _deadline_details(notification)
+    meta = deadline.get("meta") if isinstance(deadline.get("meta"), dict) else {}
+    transaction_type = meta.get("transaction_type") or deadline.get("type") or notification.get("type", "compliance")
+    amount = meta.get("amount")
+    party = meta.get("party")
+    category = meta.get("category")
+    sub_category = meta.get("sub_category")
+    source = meta.get("source")
+    transaction_month = meta.get("transaction_month")
+    deadline_rule = meta.get("deadline_rule")
+
+    lines = [
+        "Hello,",
+        "",
+        "This is a compliance reminder from FinPilot.",
+        f"- Title: {notification.get('title', 'Compliance deadline')}",
+        f"- Type: {transaction_type}",
+        f"- Due Date: {notification.get('due_date', '-')}",
+        f"- Days Left: {notification.get('days_left', '-')}",
+    ]
+
+    if transaction_month:
+        lines.append(f"- Transaction Month: {transaction_month}")
+    if amount is not None:
+        try:
+            amount_text = f"₹{float(amount):,.2f}"
+        except Exception:
+            amount_text = str(amount)
+        lines.append(f"- Transaction Amount: {amount_text}")
+    if party:
+        lines.append(f"- Party: {party}")
+    if category:
+        lines.append(f"- Category: {category}{f' / {sub_category}' if sub_category else ''}")
+    if source:
+        lines.append(f"- Source: {source}")
+    if deadline_rule:
+        lines.append(f"- Deadline Rule: {deadline_rule}")
+
+    lines.extend([
+        "",
+        "Please complete the filing before the due date.",
+        "",
+        "Regards,",
+        "FinPilot",
+    ])
+
     return (
-        "Hello,\n\n"
-        "This is a compliance reminder from FinPilot.\n"
-        f"- Title: {notification.get('title', 'Compliance deadline')}\n"
-        f"- Type: {notification.get('type', 'compliance')}\n"
-        f"- Due Date: {notification.get('due_date', '-')}\n"
-        f"- Days Left: {notification.get('days_left', '-')}\n\n"
-        "Please complete the filing before the due date.\n\n"
-        "Regards,\nFinPilot"
+        "\n".join(lines)
     )
 
 

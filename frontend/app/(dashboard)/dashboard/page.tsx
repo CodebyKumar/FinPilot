@@ -33,6 +33,13 @@ interface DashboardAction {
   priority: 'critical' | 'high' | 'medium' | 'low';
 }
 
+interface DashboardMonthlyCluster {
+  month: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
 interface DashboardInsight {
   type?: string;
   text: string;
@@ -41,6 +48,7 @@ interface DashboardInsight {
 interface DashboardData {
   kpis: DashboardKpis;
   recent_transactions: DashboardTransaction[];
+  monthly_clusters: DashboardMonthlyCluster[];
   pending_actions: DashboardAction[];
   ai_insights: DashboardInsight[];
 }
@@ -57,6 +65,7 @@ const EMPTY_DATA: DashboardData = {
     tax_trend_pct: 0,
   },
   recent_transactions: [],
+  monthly_clusters: [],
   pending_actions: [],
   ai_insights: [],
 };
@@ -77,6 +86,7 @@ export default function DashboardPage() {
         setDashboardData({
           kpis: data?.kpis || EMPTY_DATA.kpis,
           recent_transactions: Array.isArray(data?.recent_transactions) ? data.recent_transactions : [],
+          monthly_clusters: Array.isArray(data?.monthly_clusters) ? data.monthly_clusters : [],
           pending_actions: Array.isArray(data?.pending_actions) ? data.pending_actions : [],
           ai_insights: Array.isArray(data?.ai_insights) ? data.ai_insights : [],
         });
@@ -132,6 +142,12 @@ export default function DashboardPage() {
     ],
     [dashboardData]
   );
+
+  const maxClusterValue = useMemo(() => {
+    const values = dashboardData.monthly_clusters.flatMap((m) => [m.revenue, m.expenses, Math.max(0, m.profit)]);
+    const max = Math.max(0, ...values);
+    return max > 0 ? max : 1;
+  }, [dashboardData.monthly_clusters]);
 
   return (
     <PageShell
@@ -244,6 +260,65 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      <Card title="Financial Trend" subtitle="Revenue vs Expenses vs Profit (last 6 months)">
+        {isLoading ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>Preparing graph...</p>
+        ) : dashboardData.monthly_clusters.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>Not enough transaction data to plot trend.</p>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#2563eb', display: 'inline-block' }} /> Revenue
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} /> Expenses
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#10b981', display: 'inline-block' }} /> Profit
+              </span>
+            </div>
+
+            <div style={{
+              border: '1px solid var(--border)',
+              borderRadius: '0.75rem',
+              background: 'linear-gradient(to bottom, rgba(99,102,241,0.04), rgba(0,0,0,0))',
+              padding: '1rem 0.75rem 0.75rem',
+              overflowX: 'auto',
+            }}>
+              <div style={{ minWidth: 680, display: 'flex', alignItems: 'flex-end', gap: '0.9rem', height: 260 }}>
+                {dashboardData.monthly_clusters.map((bucket, idx) => {
+                  const revenueHeight = Math.max(6, Math.round((bucket.revenue / maxClusterValue) * 170));
+                  const expensesHeight = Math.max(6, Math.round((bucket.expenses / maxClusterValue) * 170));
+                  const profitHeight = Math.max(6, Math.round((Math.max(0, bucket.profit) / maxClusterValue) * 170));
+
+                  const render3DBar = (height: number, front: string, side: string, top: string) => (
+                    <div style={{ width: 18, position: 'relative', height, transform: 'skewY(-6deg)' }}>
+                      <div style={{ position: 'absolute', inset: 0, background: front, borderRadius: '2px 2px 0 0' }} />
+                      <div style={{ position: 'absolute', right: -6, top: 0, width: 6, height, background: side, transform: 'skewY(-45deg)', transformOrigin: 'top left', borderRadius: '0 2px 0 0' }} />
+                      <div style={{ position: 'absolute', left: 0, top: -6, width: 18, height: 6, background: top, transform: 'skewX(-45deg)', transformOrigin: 'bottom left', borderRadius: '2px 2px 0 0' }} />
+                    </div>
+                  );
+
+                  return (
+                    <div key={`${bucket.month}-${idx}`} style={{ flex: 1, minWidth: 84, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.55rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 190 }}>
+                        {render3DBar(revenueHeight, '#2563eb', '#1d4ed8', '#60a5fa')}
+                        {render3DBar(expensesHeight, '#f59e0b', '#d97706', '#fbbf24')}
+                        {render3DBar(profitHeight, '#10b981', '#059669', '#34d399')}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--muted)' }}>{bucket.month}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </Card>
 
       {/* AI Suggestions */}
       <Card title="AI Insights" subtitle="Smart recommendations from your CFO assistant">

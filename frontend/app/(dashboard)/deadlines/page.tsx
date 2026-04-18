@@ -36,6 +36,10 @@ export default function DeadlinesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingReminders, setIsSendingReminders] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info' | null>(null);
 
@@ -79,6 +83,45 @@ export default function DeadlinesPage() {
     return [...deadlines].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   }, [deadlines]);
 
+  const formatDateKey = (raw: string | Date) => {
+    const d = typeof raw === 'string' ? new Date(raw) : raw;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const deadlineDateMap = useMemo(() => {
+    const map = new Map<string, DeadlineItem[]>();
+    for (const item of filteredDeadlines) {
+      const key = formatDateKey(item.due_date);
+      const existing = map.get(key) || [];
+      existing.push(item);
+      map.set(key, existing);
+    }
+    return map;
+  }, [filteredDeadlines]);
+
+  const monthCells = useMemo(() => {
+    const start = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+    const monthStartDay = start.getDay();
+    const gridStart = new Date(start);
+    gridStart.setDate(start.getDate() - monthStartDay);
+
+    return Array.from({ length: 42 }).map((_, idx) => {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + idx);
+      const key = formatDateKey(date);
+      const items = deadlineDateMap.get(key) || [];
+      return {
+        date,
+        key,
+        inMonth: date.getMonth() === viewMonth.getMonth(),
+        items,
+      };
+    });
+  }, [viewMonth, deadlineDateMap]);
+
   const handleSaveDeadline = async () => {
     if (!form.title.trim() || !form.dueDate) {
       setMessage('Title and due date are required.', 'error');
@@ -97,7 +140,7 @@ export default function DeadlinesPage() {
         meta: {},
       });
       setForm(EMPTY_FORM);
-      setMessage('Deadline saved successfully.', 'success');
+      setMessage('Deadline detected and reminder email triggered.', 'success');
       await loadDeadlines();
     } catch (error) {
       setMessage(getErrorMessage(error, 'Failed to save deadline'), 'error');
@@ -206,6 +249,96 @@ export default function DeadlinesPage() {
         </Card>
       </div>
 
+      <Card
+        title="Deadline Calendar"
+        subtitle="Highlighted dates indicate reminder/deadline entries"
+        style={{ marginBottom: '1.5rem' }}
+      >
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+          <Button
+            variant="secondary"
+            onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+          >
+            Previous
+          </Button>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+            {viewMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+          </h3>
+          <Button
+            variant="secondary"
+            onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+          >
+            Next
+          </Button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '0.35rem', marginBottom: '0.35rem' }}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <div key={day} style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>
+              {day}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '0.35rem' }}>
+          {monthCells.map((cell) => {
+            const hasReminder = cell.items.length > 0;
+            const isToday = formatDateKey(new Date()) === cell.key;
+            const hasOverdue = cell.items.some((d) => d.status === 'overdue');
+            const accent = hasOverdue ? 'var(--rose)' : 'var(--amber)';
+
+            return (
+              <div
+                key={cell.key}
+                style={{
+                  minHeight: '68px',
+                  borderRadius: '0.5rem',
+                  border: `1px solid ${hasReminder ? accent : 'var(--border)'}`,
+                  background: hasReminder ? 'var(--card-glow-amber)' : 'var(--bg2)',
+                  padding: '0.35rem 0.4rem',
+                  opacity: cell.inMonth ? 1 : 0.55,
+                  boxShadow: isToday ? '0 0 0 2px rgba(99, 102, 241, 0.22)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>{cell.date.getDate()}</span>
+                  {hasReminder && (
+                    <span style={{ fontSize: '0.68rem', color: accent, fontWeight: 700 }}>
+                      {cell.items.length}
+                    </span>
+                  )}
+                </div>
+
+                {hasReminder && (
+                  <div style={{ display: 'grid', gap: '0.2rem' }}>
+                    {cell.items.slice(0, 1).map((d) => (
+                      <div
+                        key={d.deadline_id}
+                        style={{
+                          fontSize: '0.66rem',
+                          color: 'var(--text)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={d.title}
+                      >
+                        • {d.title}
+                      </div>
+                    ))}
+                    {cell.items.length > 1 && (
+                      <div style={{ fontSize: '0.64rem', color: 'var(--muted)' }}>+{cell.items.length - 1} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        </div>
+      </Card>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
         {isLoading ? (
           <Card>
@@ -240,11 +373,45 @@ export default function DeadlinesPage() {
                       Transaction date: {deadline.meta.transaction_date}
                     </p>
                   )}
+                  {deadline.meta?.transaction_month && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      Transaction month: {String(deadline.meta.transaction_month)}
+                    </p>
+                  )}
+                  {deadline.meta?.amount !== undefined && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      Amount: ₹{Number(deadline.meta.amount || 0).toLocaleString('en-IN')}
+                      {deadline.meta?.transaction_type ? ` • ${String(deadline.meta.transaction_type)}` : ''}
+                    </p>
+                  )}
+                  {deadline.meta?.party && deadline.meta?.source === 'transaction_auto_deadline' && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      Party: {String(deadline.meta.party)}
+                    </p>
+                  )}
+                  {deadline.meta?.category && deadline.meta?.source === 'transaction_auto_deadline' && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      Category: {String(deadline.meta.category)}
+                      {deadline.meta?.sub_category ? ` / ${String(deadline.meta.sub_category)}` : ''}
+                    </p>
+                  )}
+                  {deadline.meta?.reminder_status && (
+                    <p style={{ margin: '0.35rem 0 0 0', color: deadline.meta.reminder_status === 'sent' ? 'var(--emerald)' : deadline.meta.reminder_status === 'failed' ? 'var(--rose)' : 'var(--muted)', fontSize: '0.85rem' }}>
+                      Reminder email: {String(deadline.meta.reminder_status)}
+                      {deadline.meta?.reminder_sent_at ? ` (${new Date(String(deadline.meta.reminder_sent_at)).toLocaleString()})` : ''}
+                    </p>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   {deadline.meta?.source === 'bookkeeping_invoice_upload' && (
                     <Badge variant="info">Auto from invoice</Badge>
                   )}
+                  {deadline.meta?.source === 'transaction_auto_deadline' && (
+                    <Badge variant="info">Auto from transaction</Badge>
+                  )}
+                  {deadline.meta?.reminder_status === 'sent' && <Badge variant="success">Email sent</Badge>}
+                  {deadline.meta?.reminder_status === 'failed' && <Badge variant="error">Email failed</Badge>}
+                  {deadline.meta?.reminder_status === 'queued' && <Badge variant="warning">Email queued</Badge>}
                   <Badge variant={deadline.status === 'pending' ? 'warning' : deadline.status === 'overdue' ? 'error' : 'info'}>
                     {deadline.status}
                   </Badge>

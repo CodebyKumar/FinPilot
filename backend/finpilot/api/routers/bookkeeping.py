@@ -282,6 +282,40 @@ def dashboard_overview_route(user_id: str):
             for t in recent
         ]
 
+        monthly_rollup: dict[str, dict[str, float]] = {}
+        for t in txns:
+            month_key = t.date.strftime("%Y-%m")
+            if month_key not in monthly_rollup:
+                monthly_rollup[month_key] = {"revenue": 0.0, "expenses": 0.0}
+            if t.type == "credit":
+                monthly_rollup[month_key]["revenue"] += _safe_float(t.amount)
+            else:
+                monthly_rollup[month_key]["expenses"] += _safe_float(t.amount)
+
+        monthly_clusters: list[dict] = []
+        year = now.year
+        month = now.month
+        for _ in range(6):
+            key = f"{year:04d}-{month:02d}"
+            bucket = monthly_rollup.get(key, {"revenue": 0.0, "expenses": 0.0})
+            revenue = _safe_float(bucket.get("revenue"))
+            expenses = _safe_float(bucket.get("expenses"))
+            monthly_clusters.append(
+                {
+                    "month": datetime(year, month, 1).strftime("%b %y"),
+                    "revenue": revenue,
+                    "expenses": expenses,
+                    "profit": revenue - expenses,
+                }
+            )
+
+            month -= 1
+            if month == 0:
+                month = 12
+                year -= 1
+
+        monthly_clusters.reverse()
+
         profile_doc = _get_db()["profiles"].find_one({"user_id": user_id}, {"_id": 0}) or {}
         personal = profile_doc.get("personal_info") if isinstance(profile_doc.get("personal_info"), dict) else {}
         business = profile_doc.get("business_info") if isinstance(profile_doc.get("business_info"), dict) else {}
@@ -327,6 +361,7 @@ def dashboard_overview_route(user_id: str):
                     "tax_trend_pct": _trend_pct(sum(_safe_float(t.gst_amount) for t in txns if t.type == "credit" and t.date >= current_start), sum(_safe_float(t.gst_amount) for t in txns if t.type == "credit" and previous_start <= t.date < current_start)),
                 },
                 "recent_transactions": recent_transactions,
+                "monthly_clusters": monthly_clusters,
                 "pending_actions": pending_actions[:5],
                 "ai_insights": ai_insights,
             },

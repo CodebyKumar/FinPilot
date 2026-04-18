@@ -10,6 +10,7 @@ from uuid import uuid4
 from typing import Any
 
 from dateutil import parser as date_parser
+from dateutil.relativedelta import relativedelta
 from fastapi import BackgroundTasks
 
 from finpilot import config
@@ -266,6 +267,87 @@ def _next_financial_year_end_from_date(transaction_date: datetime) -> datetime:
     return datetime(transaction_date.year if transaction_date.month <= 3 else transaction_date.year + 1, 3, 31)
 
 
+def _transaction_deadline_due_date(transaction_date: datetime) -> datetime:
+    return transaction_date + relativedelta(months=+6)
+
+
+def _sync_transaction_deadlines(user_id: str) -> dict[str, int]:
+    txns = list(
+        _get_db()["transactions"].find(
+            {"user_id": user_id},
+            {
+                "_id": 1,
+                "amount": 1,
+                "type": 1,
+                "party": 1,
+                "date": 1,
+                "source": 1,
+                "category": 1,
+                "sub_category": 1,
+            },
+        )
+    )
+
+    created = 0
+    updated = 0
+
+    for txn in txns:
+        txn_id = str(txn.get("_id") or "").strip()
+        if not txn_id:
+            continue
+
+        txn_date = _parse_datetime(str(txn.get("date") or ""))
+        due_date = _transaction_deadline_due_date(txn_date)
+        now_iso = _now_iso()
+        deadline_id = f"transaction-{txn_id}"
+        existing = _deadlines_collection().find_one(
+            {"deadline_id": deadline_id, "user_id": user_id},
+            {"_id": 0, "status": 1, "submitted": 1, "created_at": 1},
+        )
+
+        status = existing.get("status") if isinstance(existing, dict) and existing.get("status") else "pending"
+        submitted = bool(existing.get("submitted")) if isinstance(existing, dict) else False
+
+        doc = {
+            "deadline_id": deadline_id,
+            "user_id": user_id,
+            "type": "transaction_review",
+            "title": f"Transaction review - {txn.get('party') or 'Unknown party'}",
+            "due_date": due_date.date().isoformat(),
+            "status": status,
+            "submitted": submitted,
+            "meta": {
+                "source": "transaction_auto_deadline",
+                "transaction_id": txn_id,
+                "transaction_date": txn_date.date().isoformat(),
+                "transaction_month": txn_date.strftime("%B %Y"),
+                "deadline_rule": "6_months_from_transaction_date",
+                "amount": float(txn.get("amount") or 0.0),
+                "transaction_type": str(txn.get("type") or "").lower() or "unknown",
+                "party": txn.get("party") or "Unknown",
+                "category": txn.get("category") or "Uncategorized",
+                "sub_category": txn.get("sub_category") or "Uncategorized",
+                "txn_source": txn.get("source") or "unknown",
+            },
+            "updated_at": now_iso,
+        }
+
+        result = _deadlines_collection().update_one(
+            {"deadline_id": deadline_id, "user_id": user_id},
+            {
+                "$set": doc,
+                "$setOnInsert": {"created_at": now_iso},
+            },
+            upsert=True,
+        )
+        if result.upserted_id is not None:
+            created += 1
+        elif result.modified_count > 0:
+            updated += 1
+
+    return {"created": created, "updated": updated}
+
+
 def _infer_invoice_financial_year_end(transaction_date: datetime) -> datetime:
     api_key = config.OPENAI_API_KEY
     deterministic = _next_financial_year_end_from_date(transaction_date)
@@ -387,10 +469,12 @@ def _schedule_invoice_deadline(
         upsert=True,
     )
 
-    queued_new = scan_deadlines_once(user_id=user_id)
+    queued_new = scan_deadlines_once(user_id=user_id, force_queue=True)
+    sent_now = dispatch_queued_notifications(limit=50, user_id=user_id)
     return {
         "deadline": deadline_doc,
         "queued_new": queued_new,
+        "sent_now": sent_now,
     }
 
 
@@ -1818,12 +1902,67 @@ def _task_deadline_add(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "updated_at": _now_iso(),
     }
     _deadlines_collection().update_one({"deadline_id": deadline_id}, {"$set": doc}, upsert=True)
-    return {"saved": True, "deadline": doc}
+
+    queued_new = scan_deadlines_once(user_id=user_id, force_queue=True)
+    sent_now = dispatch_queued_notifications(limit=50, user_id=user_id)
+    still_queued = _get_db()["notifications"].count_documents({"user_id": user_id, "status": "queued"})
+
+    return {
+        "saved": True,
+        "deadline": doc,
+        "notification": {
+            "queued_new": queued_new,
+            "sent": sent_now,
+            "still_queued": still_queued,
+        },
+    }
 
 
 def _task_deadline_get(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    sync_summary = _sync_transaction_deadlines(user_id)
     items = list(_deadlines_collection().find({"user_id": user_id}, {"_id": 0}).sort("due_date", 1))
-    return {"deadlines": items, "count": len(items)}
+
+    deadline_ids = [item.get("deadline_id") for item in items if item.get("deadline_id")]
+    notification_index: dict[str, dict[str, Any]] = {}
+    if deadline_ids:
+        notifications = list(
+            _get_db()["notifications"].find(
+                {
+                    "user_id": user_id,
+                    "deadline_id": {"$in": deadline_ids},
+                },
+                {
+                    "_id": 0,
+                    "deadline_id": 1,
+                    "status": 1,
+                    "sent_at": 1,
+                    "updated_at": 1,
+                    "error": 1,
+                },
+            ).sort("updated_at", -1)
+        )
+
+        for n in notifications:
+            d_id = n.get("deadline_id")
+            if d_id and d_id not in notification_index:
+                notification_index[d_id] = n
+
+    for item in items:
+        d_id = item.get("deadline_id")
+        notif = notification_index.get(d_id)
+        meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
+        if notif:
+            meta["reminder_status"] = notif.get("status")
+            meta["reminder_sent_at"] = notif.get("sent_at")
+            if notif.get("error"):
+                meta["reminder_error"] = notif.get("error")
+        item["meta"] = meta
+
+    return {
+        "deadlines": items,
+        "count": len(items),
+        "transaction_deadline_sync": sync_summary,
+    }
 
 
 def _task_deadline_delete(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
