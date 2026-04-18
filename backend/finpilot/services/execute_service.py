@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import os
 import re
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Any
 
@@ -113,6 +114,161 @@ def _parse_datetime(raw: str | None):
         return date_parser.parse(raw, dayfirst=True)
     except Exception:
         return datetime.now()
+
+
+def _resolve_transaction_date(
+    user_id: str,
+    *,
+    linked_transaction_id: str | None,
+    invoice_date_raw: str | None,
+) -> datetime:
+    if linked_transaction_id:
+        txn = _get_db()["transactions"].find_one(
+            {"_id": linked_transaction_id, "user_id": user_id},
+            {"_id": 0, "date": 1},
+        )
+        if txn and txn.get("date"):
+            try:
+                return _parse_datetime(str(txn["date"]))
+            except Exception:
+                pass
+
+    if invoice_date_raw:
+        return _parse_datetime(invoice_date_raw)
+
+    return datetime.now()
+
+
+def _next_financial_year_end_from_date(transaction_date: datetime) -> datetime:
+    return datetime(transaction_date.year if transaction_date.month <= 3 else transaction_date.year + 1, 3, 31)
+
+
+def _infer_invoice_financial_year_end(transaction_date: datetime) -> datetime:
+    api_key = config.OPENAI_API_KEY
+    deterministic = _next_financial_year_end_from_date(transaction_date)
+    if not api_key:
+        return deterministic
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You calculate Indian financial year ends. "
+                        "Given a transaction date, return only JSON with key financial_year_end in ISO date format. "
+                        "Use the next financial year end after the transaction date, ending on March 31."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Transaction date: {transaction_date.date().isoformat()}",
+                },
+            ],
+        )
+        content = response.choices[0].message.content or ""
+        parsed = json.loads(content)
+        raw_financial_year_end = _safe_text(parsed.get("financial_year_end"))
+        if raw_financial_year_end:
+            return datetime.fromisoformat(raw_financial_year_end)
+    except Exception:
+        pass
+
+    return deterministic
+
+
+def _infer_invoice_due_date(extracted: dict[str, Any], fallback_date: datetime) -> datetime:
+    raw_text = _safe_text(extracted.get("raw_text"))
+
+    explicit_patterns = [
+        r"(?i)(?:due\s*date|payment\s*due|pay\s*by|due\s*on)\s*[:\-]?\s*([0-9]{1,2}[\-/][0-9]{1,2}[\-/][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4})",
+    ]
+    for pattern in explicit_patterns:
+        match = re.search(pattern, raw_text)
+        if match:
+            try:
+                return date_parser.parse(match.group(1), dayfirst=True)
+            except Exception:
+                continue
+
+    relative_patterns = [
+        r"(?i)due\s+in\s+([0-9]{1,3})\s+days?",
+        r"(?i)payable\s+within\s+([0-9]{1,3})\s+days?",
+        r"(?i)net\s+([0-9]{1,3})",
+    ]
+    for pattern in relative_patterns:
+        match = re.search(pattern, raw_text)
+        if match:
+            try:
+                days = int(match.group(1))
+                return fallback_date + timedelta(days=max(1, days))
+            except Exception:
+                continue
+
+    invoice_date_raw = extracted.get("invoice_date")
+    if invoice_date_raw:
+        try:
+            invoice_date = date_parser.parse(str(invoice_date_raw), dayfirst=True)
+            return invoice_date + timedelta(days=30)
+        except Exception:
+            pass
+
+    return fallback_date + timedelta(days=30)
+
+
+def _schedule_invoice_deadline(
+    user_id: str,
+    *,
+    invoice: dict[str, Any],
+    linked_transaction_id: str | None,
+) -> dict[str, Any]:
+    transaction_date = _resolve_transaction_date(
+        user_id,
+        linked_transaction_id=linked_transaction_id,
+        invoice_date_raw=invoice.get("date"),
+    )
+    financial_year_end = _infer_invoice_financial_year_end(transaction_date)
+    due_date = financial_year_end
+    deadline_id = invoice.get("invoice_id") or str(uuid4())
+    deadline_doc = {
+        "user_id": user_id,
+        "deadline_id": f"invoice-{deadline_id}",
+        "type": "invoice_payment",
+        "title": f"Invoice Payment FY End - {invoice.get('party', 'Unknown')}",
+        "due_date": due_date.date().isoformat(),
+        "status": "pending",
+        "submitted": False,
+        "meta": {
+            "source": "bookkeeping_invoice_upload",
+            "invoice_id": invoice.get("invoice_id"),
+            "invoice_date": invoice.get("date"),
+            "transaction_date": transaction_date.date().isoformat(),
+            "linked_transaction_id": linked_transaction_id,
+            "amount": invoice.get("amount", 0.0),
+            "party": invoice.get("party", "Unknown"),
+            "financial_year_end": financial_year_end.date().isoformat(),
+        },
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+    }
+
+    _deadlines_collection().update_one(
+        {"deadline_id": deadline_doc["deadline_id"], "user_id": user_id},
+        {"$set": deadline_doc},
+        upsert=True,
+    )
+
+    queued_new = scan_deadlines_once(user_id=user_id)
+    return {
+        "deadline": deadline_doc,
+        "queued_new": queued_new,
+    }
 
 
 def _normalize_key(value: str) -> str:
@@ -607,12 +763,20 @@ def _task_bookkeeping_upload_invoice(user_id: str, payload: dict[str, Any]) -> d
         save_transaction(txn, user_id)
         linked_transaction = txn.to_dict()
         doc["linked_transaction_id"] = txn.id
+        doc["date"] = txn.date.isoformat()
 
     _invoices_collection().update_one({"invoice_id": doc["invoice_id"]}, {"$set": doc}, upsert=True)
+    deadline_result = _schedule_invoice_deadline(
+        user_id,
+        invoice=doc,
+        linked_transaction_id=doc.get("linked_transaction_id"),
+    )
     return {
         "uploaded": True,
         "invoice": doc,
         "linked_transaction": linked_transaction,
+        "deadline": deadline_result.get("deadline"),
+        "reminders_queued": deadline_result.get("queued_new", 0),
     }
 
 
