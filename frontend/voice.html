@@ -1,0 +1,2515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sarvam Voice Lab</title>
+  <style>
+    :root {
+      --page: #f7f9fb;
+      --ink: #171717;
+      --muted: #5f6368;
+      --line: #d7dde3;
+      --panel: #ffffff;
+      --teal: #0f766e;
+      --teal-dark: #115e59;
+      --rose: #be123c;
+      --green: #15803d;
+      --amber: #b45309;
+      --shadow: 0 16px 40px rgba(23, 23, 23, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 44px;
+      padding: 0 16px;
+      transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+    }
+
+    label {
+      color: var(--muted);
+      display: block;
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    input,
+    select,
+    textarea {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      outline: 0;
+      padding: 11px 12px;
+      width: 100%;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    textarea {
+      min-height: 142px;
+      resize: vertical;
+    }
+
+    .shell {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      align-items: center;
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      padding: 16px clamp(16px, 4vw, 44px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .brand {
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand img {
+      border-radius: 8px;
+      height: 44px;
+      object-fit: cover;
+      width: 64px;
+    }
+
+    .brand h1 {
+      font-size: 1.1rem;
+      line-height: 1.2;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .status-pill {
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      display: inline-flex;
+      font-size: 0.92rem;
+      font-weight: 700;
+      gap: 8px;
+      min-height: 36px;
+      padding: 0 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      background: var(--amber);
+      border-radius: 50%;
+      display: inline-block;
+      height: 9px;
+      width: 9px;
+    }
+
+    .dot.ok {
+      background: var(--green);
+    }
+
+    .workspace {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 24px clamp(16px, 4vw, 44px) 44px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      align-items: flex-start;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px;
+    }
+
+    .panel-head h2,
+    .form-card h3 {
+      margin: 0 0 6px;
+      overflow-wrap: anywhere;
+    }
+
+    .panel-head p {
+      margin: 0;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .tag {
+      align-self: flex-start;
+      border-radius: 8px;
+      color: #ffffff;
+      flex: 0 0 auto;
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 6px 9px;
+    }
+
+    .tag.tts {
+      background: var(--teal);
+    }
+
+    .tag.stt {
+      background: var(--rose);
+    }
+
+    .agent-panel {
+      grid-column: 1 / -1;
+    }
+
+    .assistant-panel {
+      grid-column: 1 / -1;
+    }
+
+    .body {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+    }
+
+    .agent-layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+    }
+
+    .profile-layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+      align-items: start;
+    }
+
+    .agent-controls,
+    .profile-summary {
+      display: grid;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .primary {
+      background: var(--teal);
+      color: #ffffff;
+    }
+
+    .primary:hover {
+      background: var(--teal-dark);
+    }
+
+    .danger {
+      background: var(--rose);
+      color: #ffffff;
+    }
+
+    .secondary {
+      background: #e8eef2;
+      color: var(--ink);
+    }
+
+    .result,
+    .conversation,
+    .profile-preview,
+    .summary-box {
+      background: #f3f6f8;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .result,
+    .profile-preview,
+    .summary-box {
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .result {
+      min-height: 148px;
+    }
+
+    .conversation {
+      display: grid;
+      gap: 12px;
+      max-height: 460px;
+      min-height: 300px;
+      overflow: auto;
+      padding: 14px;
+    }
+
+    .turn {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .turn strong {
+      display: block;
+      font-size: 0.84rem;
+      margin-bottom: 6px;
+    }
+
+    .turn.user strong {
+      color: var(--rose);
+    }
+
+    .turn.assistant strong {
+      color: var(--teal);
+    }
+
+    .turn p,
+    .profile-note,
+    .panel-head p {
+      line-height: 1.45;
+      margin: 0;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .profile-note {
+      color: var(--muted);
+    }
+
+    .profile-preview {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      min-height: 132px;
+    }
+
+    .form-card {
+      background: #f8fafc;
+      border-top: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .summary-box {
+      min-height: 132px;
+      line-height: 1.5;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: #e8eef2;
+      border-radius: 999px;
+      color: var(--ink);
+      display: inline-flex;
+      font-size: 0.82rem;
+      font-weight: 700;
+      gap: 6px;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
+
+    .message {
+      color: var(--muted);
+      font-size: 0.94rem;
+      min-height: 22px;
+    }
+
+    .message.error {
+      color: var(--rose);
+      font-weight: 700;
+    }
+
+    .message.ok {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    audio {
+      width: 100%;
+    }
+
+    .meter {
+      background: #e8eef2;
+      border-radius: 8px;
+      height: 10px;
+      overflow: hidden;
+    }
+
+    .meter span {
+      background: var(--rose);
+      display: block;
+      height: 100%;
+      transition: width 160ms ease;
+      width: 0%;
+    }
+
+    @media (max-width: 920px) {
+      .workspace,
+      .agent-layout,
+      .profile-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-head {
+        flex-direction: column-reverse;
+      }
+
+      .actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=320&q=80" alt="Studio microphone">
+        <div>
+          <h1>Sarvam Voice Lab</h1>
+          <div class="message" id="serverUrl"></div>
+        </div>
+      </div>
+      <div class="status-pill"><span class="dot" id="healthDot"></span><span id="healthText">Checking server</span></div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel agent-panel" aria-labelledby="agentTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="agentTitle">Voice Agent</h2>
+            <p>Start a spoken conversation, send each turn, and hear the reply.</p>
+          </div>
+          <span class="tag tts">AGENT</span>
+        </div>
+        <div class="body agent-layout">
+          <div class="agent-controls">
+            <div class="grid">
+              <div>
+                <label for="agentLanguage">Language</label>
+                <select id="agentLanguage">
+                    <option value="hi-IN">Hindi</option>
+                    <option value="en-IN" selected>English India</option>
+                  <option value="gu-IN">Gujarati</option>
+                  <option value="bn-IN">Bengali</option>
+                  <option value="kn-IN">Kannada</option>
+                  <option value="ml-IN">Malayalam</option>
+                  <option value="mr-IN">Marathi</option>
+                  <option value="od-IN">Odia</option>
+                  <option value="pa-IN">Punjabi</option>
+                  <option value="ta-IN">Tamil</option>
+                  <option value="te-IN">Telugu</option>
+                </select>
+              </div>
+              <div>
+                <label for="agentSpeaker">Speaker</label>
+                <select id="agentSpeaker">
+                  <option value="shubh">shubh</option>
+                  <option value="anushka">anushka</option>
+                  <option value="abhilash">abhilash</option>
+                  <option value="manisha">manisha</option>
+                  <option value="vidya">vidya</option>
+                  <option value="arya">arya</option>
+                  <option value="karun">karun</option>
+                  <option value="hitesh">hitesh</option>
+                  <option value="aditya">aditya</option>
+                  <option value="ritu">ritu</option>
+                </select>
+              </div>
+              <div>
+                <label for="agentTurnSeconds">Turn Length</label>
+                <input id="agentTurnSeconds" type="number" min="2" max="20" step="1" value="6">
+              </div>
+              <div>
+                <label for="agentModel">Chat Model</label>
+                <select id="agentModel">
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                  <option value="gpt-4o">gpt-4o</option>
+                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                  <option value="gpt-4.1">gpt-4.1</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="primary" id="startAgent">Start Voice Agent</button>
+              <button class="secondary" id="sendAgentTurn" disabled>Send Turn Now</button>
+              <button class="danger" id="stopAgent" disabled>Stop Agent</button>
+              <button class="secondary" id="resetAgent">Reset Chat</button>
+            </div>
+
+            <div class="meter" aria-hidden="true"><span id="agentMeter"></span></div>
+            <audio id="agentAudio" controls></audio>
+            <div class="message" id="agentStatus">Idle</div>
+          </div>
+
+          <div class="conversation" id="agentConversation">Your voice conversation will appear here.</div>
+        </div>
+      </section>
+
+      <section class="panel assistant-panel" aria-labelledby="formAssistantTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="formAssistantTitle">Form Assistant</h2>
+            <p>Load personal data from <span>data.json</span> and autofill matching fields on the page.</p>
+          </div>
+          <span class="tag stt">PROFILE</span>
+        </div>
+        <div class="body profile-layout">
+          <div class="profile-summary">
+            <p class="profile-note">This scans inputs, selects, textareas, radios, and checkboxes on the current page, then fills any field that matches your profile data by label, name, placeholder, or autocomplete hint. Use the voice command “fill ITR-1 form” to populate the return below.</p>
+
+            <div class="actions">
+              <button class="primary" id="loadProfileData">Load data.json</button>
+              <button class="secondary" id="fillFormsOnPage" disabled>Fill Forms On Page</button>
+              <button class="secondary" id="refreshProfilePreview">Refresh Preview</button>
+              <button class="primary" id="fillItr1Form" type="button" disabled>Fill ITR-1 Form</button>
+              <button class="secondary" id="clearItr1Form" type="button">Clear ITR-1 Form</button>
+              <button class="primary" id="fillItr2Form" type="button" disabled>Fill ITR-2</button>
+              <button class="primary" id="fillItr3Form" type="button" disabled>Fill ITR-3</button>
+              <button class="primary" id="fillItr4Form" type="button" disabled>Fill ITR-4</button>
+              <button class="primary" id="fillForm80c" type="button" disabled>Fill Form 80C</button>
+              <button class="primary" id="fillForm80d" type="button" disabled>Fill Form 80D</button>
+              <button class="primary" id="fillForm80e" type="button" disabled>Fill Form 80E</button>
+              <button class="primary" id="fillForm80g" type="button" disabled>Fill Form 80G</button>
+              <button class="primary" id="fillHraForm" type="button" disabled>Fill HRA</button>
+              <button class="primary" id="fillForm16" type="button" disabled>Fill Form 16</button>
+              <button class="primary" id="fillForm26as" type="button" disabled>Fill Form 26AS</button>
+              <button class="secondary" id="clearRelatedForms" type="button">Clear Related Forms</button>
+            </div>
+
+            <div class="message" id="profileStatus">Profile not loaded yet.</div>
+
+            <div class="chip-row" id="profileChips"></div>
+          </div>
+
+          <div class="profile-preview" id="profilePreview">Load data.json to preview the dummy profile data.</div>
+
+          <form class="profile-demo-form" id="profileDemoForm">
+            <div class="form-card">
+              <h3>ITR-1 Personal Details</h3>
+              <div class="grid">
+                <div>
+                  <label for="itrFullName">Full name</label>
+                  <input id="itrFullName" name="full_name" autocomplete="name">
+                </div>
+                <div>
+                  <label for="itrPan">PAN</label>
+                  <input id="itrPan" name="pan">
+                </div>
+                <div>
+                  <label for="itrDob">Date of birth</label>
+                  <input id="itrDob" name="date_of_birth" type="date" autocomplete="bday">
+                </div>
+                <div>
+                  <label for="itrGender">Gender</label>
+                  <select id="itrGender" name="gender">
+                    <option value="">Select</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="itrPhone">Mobile number</label>
+                  <input id="itrPhone" name="phone" autocomplete="tel">
+                </div>
+                <div>
+                  <label for="itrEmail">Email address</label>
+                  <input id="itrEmail" name="email" autocomplete="email">
+                </div>
+                <div>
+                  <label for="itrAadhaar">Aadhaar number</label>
+                  <input id="itrAadhaar" name="aadhaar">
+                </div>
+                <div>
+                  <label for="itrMaritalStatus">Marital status</label>
+                  <select id="itrMaritalStatus" name="marital_status">
+                    <option value="">Select</option>
+                    <option>Single</option>
+                    <option>Married</option>
+                    <option>Divorced</option>
+                    <option>Widowed</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="itrResidentialStatus">Residential status</label>
+                  <select id="itrResidentialStatus" name="residential_status">
+                    <option selected>Resident</option>
+                    <option>Non-Resident</option>
+                    <option>Resident but Not Ordinarily Resident</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="itrOccupation">Occupation</label>
+                  <input id="itrOccupation" name="occupation">
+                </div>
+                <div>
+                  <label for="itrEmployer">Employer</label>
+                  <input id="itrEmployer" name="employer" autocomplete="organization">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-card">
+              <h3>Address Details</h3>
+              <div class="grid">
+                <div>
+                  <label for="itrAddress1">Address line 1</label>
+                  <input id="itrAddress1" name="address_line_1" autocomplete="address-line1">
+                </div>
+                <div>
+                  <label for="itrAddress2">Address line 2</label>
+                  <input id="itrAddress2" name="address_line_2" autocomplete="address-line2">
+                </div>
+                <div>
+                  <label for="itrCity">City</label>
+                  <input id="itrCity" name="city" autocomplete="address-level2">
+                </div>
+                <div>
+                  <label for="itrState">State</label>
+                  <input id="itrState" name="state" autocomplete="address-level1">
+                </div>
+                <div>
+                  <label for="itrPincode">Pincode</label>
+                  <input id="itrPincode" name="postal_code" autocomplete="postal-code">
+                </div>
+                <div>
+                  <label for="itrCountry">Country</label>
+                  <input id="itrCountry" name="country" value="India" autocomplete="country">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-card">
+              <h3>Income and Bank Details</h3>
+              <div class="grid">
+                <div>
+                  <label for="itrSalaryIncome">Salary income</label>
+                  <input id="itrSalaryIncome" name="salary_income" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="itrOtherIncome">Other income</label>
+                  <input id="itrOtherIncome" name="other_income" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="itrDeduction80C">Deduction under 80C</label>
+                  <input id="itrDeduction80C" name="deduction_80c" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="itrDeduction80D">Deduction under 80D</label>
+                  <input id="itrDeduction80D" name="deduction_80d" inputmode="numeric">
+                </div>
+                <div>
+                  <label for="itrBankName">Bank name</label>
+                  <input id="itrBankName" name="bank_name" autocomplete="organization">
+                </div>
+                <div>
+                  <label for="itrAccountNumber">Account number</label>
+                  <input id="itrAccountNumber" name="account_number">
+                </div>
+                <div>
+                  <label for="itrIfsc">IFSC</label>
+                  <input id="itrIfsc" name="ifsc">
+                </div>
+                <div>
+                  <label for="itrBranch">Branch</label>
+                  <input id="itrBranch" name="branch">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-card">
+              <h3>Return Summary</h3>
+              <div class="grid">
+                <div>
+                  <label for="itrFormType">Form type</label>
+                  <input id="itrFormType" value="ITR-1" readonly>
+                </div>
+                <div>
+                  <label for="itrAssessmentYear">Assessment year</label>
+                  <input id="itrAssessmentYear" value="2025-26">
+                </div>
+                <div>
+                  <label for="itrFilingStatus">Filing status</label>
+                  <select id="itrFilingStatus">
+                    <option selected>Original</option>
+                    <option>Revised</option>
+                    <option>Belated</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="itrVerification">Verification</label>
+                  <select id="itrVerification">
+                    <option selected>E-Verify later</option>
+                    <option>E-Verify now</option>
+                    <option>File and sign physically</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary-box" id="itr1Summary">The filled ITR-1 summary will appear here.</div>
+
+            <div class="form-card">
+              <h3>ITR-2 (Capital Gains / Multiple House Properties)</h3>
+              <div class="grid">
+                <div><label for="itr2ShortTermCapitalGains">Short-term capital gains</label><input id="itr2ShortTermCapitalGains" inputmode="numeric"></div>
+                <div><label for="itr2LongTermCapitalGains">Long-term capital gains</label><input id="itr2LongTermCapitalGains" inputmode="numeric"></div>
+                <div><label for="itr2CapitalGains">Total capital gains</label><input id="itr2CapitalGains" inputmode="numeric"></div>
+                <div><label for="itr2HousePropertyIncome">House property income</label><input id="itr2HousePropertyIncome" inputmode="numeric"></div>
+                <div><label for="itr2DividendIncome">Dividend income</label><input id="itr2DividendIncome" inputmode="numeric"></div>
+                <div><label for="itr2AgriculturalIncome">Agricultural income</label><input id="itr2AgriculturalIncome" inputmode="numeric"></div>
+                <div><label for="itr2ForeignIncome">Foreign income</label><input id="itr2ForeignIncome" inputmode="numeric"></div>
+                <div><label for="itr2ForeignAssets">Foreign assets held</label><select id="itr2ForeignAssets"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+              </div>
+              <div class="summary-box" id="itr2Summary">ITR-2 summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>ITR-3 (Business/Profession)</h3>
+              <div class="grid">
+                <div><label for="itr3BusinessIncome">Business income</label><input id="itr3BusinessIncome" inputmode="numeric"></div>
+                <div><label for="itr3BusinessTurnover">Business turnover</label><input id="itr3BusinessTurnover" inputmode="numeric"></div>
+                <div><label for="itr3ProfessionalReceipts">Professional receipts</label><input id="itr3ProfessionalReceipts" inputmode="numeric"></div>
+                <div><label for="itr3ProfitBeforeTax">Profit before tax</label><input id="itr3ProfitBeforeTax" inputmode="numeric"></div>
+                <div><label for="itr3Gstin">GSTIN</label><input id="itr3Gstin"></div>
+                <div><label for="itr3AuditRequired">Audit required</label><select id="itr3AuditRequired"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+                <div><label for="itr3BooksMaintained">Books maintained</label><select id="itr3BooksMaintained"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+                <div><label for="itr3DepreciationClaimed">Depreciation claimed</label><input id="itr3DepreciationClaimed" inputmode="numeric"></div>
+              </div>
+              <div class="summary-box" id="itr3Summary">ITR-3 summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>ITR-4 (Presumptive Income)</h3>
+              <div class="grid">
+                <div><label for="itr4Turnover44ad">44AD turnover</label><input id="itr4Turnover44ad" inputmode="numeric"></div>
+                <div><label for="itr4Receipts44ada">44ADA receipts</label><input id="itr4Receipts44ada" inputmode="numeric"></div>
+                <div><label for="itr4PresumptiveIncome">Presumptive income declared</label><input id="itr4PresumptiveIncome" inputmode="numeric"></div>
+                <div><label for="itr4CashReceiptsPercent">Cash receipts %</label><input id="itr4CashReceiptsPercent" inputmode="numeric"></div>
+                <div><label for="itr4DigitalReceiptsPercent">Digital receipts %</label><input id="itr4DigitalReceiptsPercent" inputmode="numeric"></div>
+                <div><label for="itr4CashDeposits">Cash deposits</label><input id="itr4CashDeposits" inputmode="numeric"></div>
+                <div><label for="itr4BusinessCode">Business code</label><input id="itr4BusinessCode"></div>
+                <div><label for="itr4AdvanceTaxPaid">Advance tax paid</label><input id="itr4AdvanceTaxPaid" inputmode="numeric"></div>
+              </div>
+              <div class="summary-box" id="itr4Summary">ITR-4 summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 80C (Investments)</h3>
+              <div class="grid">
+                <div><label for="f80cAmount">80C amount</label><input id="f80cAmount" inputmode="numeric"></div>
+                <div><label for="f80cInstrument">Instrument</label><input id="f80cInstrument"></div>
+                <div><label for="f80cPolicyNumber">Policy/Folio number</label><input id="f80cPolicyNumber"></div>
+                <div><label for="f80cProvider">Provider</label><input id="f80cProvider"></div>
+                <div><label for="f80cPpfAmount">PPF amount</label><input id="f80cPpfAmount" inputmode="numeric"></div>
+                <div><label for="f80cElssAmount">ELSS amount</label><input id="f80cElssAmount" inputmode="numeric"></div>
+                <div><label for="f80cLifeInsurancePremium">Life insurance premium</label><input id="f80cLifeInsurancePremium" inputmode="numeric"></div>
+                <div><label for="f80cTuitionFees">Tuition fees</label><input id="f80cTuitionFees" inputmode="numeric"></div>
+                <div><label for="f80cHomeLoanPrincipal">Home loan principal</label><input id="f80cHomeLoanPrincipal" inputmode="numeric"></div>
+                <div><label for="f80cTotalClaimed">Total claimed</label><input id="f80cTotalClaimed" inputmode="numeric"></div>
+              </div>
+              <div class="summary-box" id="f80cSummary">80C summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 80D (Medical Insurance)</h3>
+              <div class="grid">
+                <div><label for="f80dSelfPremium">Self/family premium</label><input id="f80dSelfPremium" inputmode="numeric"></div>
+                <div><label for="f80dSpouseChildrenPremium">Spouse/children premium</label><input id="f80dSpouseChildrenPremium" inputmode="numeric"></div>
+                <div><label for="f80dParentsPremium">Parents premium</label><input id="f80dParentsPremium" inputmode="numeric"></div>
+                <div><label for="f80dPreventiveCheckup">Preventive checkup</label><input id="f80dPreventiveCheckup" inputmode="numeric"></div>
+                <div><label for="f80dInsurer">Insurer</label><input id="f80dInsurer"></div>
+                <div><label for="f80dPolicyNumber">Policy number</label><input id="f80dPolicyNumber"></div>
+                <div><label for="f80dSeniorCitizen">Parents are senior citizens</label><select id="f80dSeniorCitizen"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+                <div><label for="f80dModeOfPayment">Mode of payment</label><select id="f80dModeOfPayment"><option value="">Select</option><option>Cashless</option><option>UPI</option><option>Card</option><option>Cheque</option></select></div>
+              </div>
+              <div class="summary-box" id="f80dSummary">80D summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 80E (Education Loan)</h3>
+              <div class="grid">
+                <div><label for="f80eLender">Lender</label><input id="f80eLender"></div>
+                <div><label for="f80eLoanAccount">Loan account number</label><input id="f80eLoanAccount"></div>
+                <div><label for="f80eInterestPaid">Interest paid</label><input id="f80eInterestPaid" inputmode="numeric"></div>
+                <div><label for="f80eStudentName">Student name</label><input id="f80eStudentName"></div>
+                <div><label for="f80eInstitution">Institution</label><input id="f80eInstitution"></div>
+                <div><label for="f80eCourse">Course</label><input id="f80eCourse"></div>
+                <div><label for="f80eLoanStartYear">Loan start year</label><input id="f80eLoanStartYear"></div>
+                <div><label for="f80eCertificateNumber">Interest certificate number</label><input id="f80eCertificateNumber"></div>
+              </div>
+              <div class="summary-box" id="f80eSummary">80E summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 80G (Donations)</h3>
+              <div class="grid">
+                <div><label for="f80gDoneeName">Donee name</label><input id="f80gDoneeName"></div>
+                <div><label for="f80gDoneePan">Donee PAN</label><input id="f80gDoneePan"></div>
+                <div><label for="f80gDonationAmount">Donation amount</label><input id="f80gDonationAmount" inputmode="numeric"></div>
+                <div><label for="f80gEligiblePercent">Eligible %</label><select id="f80gEligiblePercent"><option value="">Select</option><option>50</option><option>100</option></select></div>
+                <div><label for="f80gDonationDate">Donation date</label><input id="f80gDonationDate" type="date"></div>
+                <div><label for="f80gPaymentMode">Payment mode</label><select id="f80gPaymentMode"><option value="">Select</option><option>Cash</option><option>Cheque</option><option>UPI</option><option>Bank transfer</option></select></div>
+                <div><label for="f80gApprovalNumber">Approval number</label><input id="f80gApprovalNumber"></div>
+                <div><label for="f80gReceiptNumber">Receipt number</label><input id="f80gReceiptNumber"></div>
+              </div>
+              <div class="summary-box" id="f80gSummary">80G summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>HRA Claim</h3>
+              <div class="grid">
+                <div><label for="hraAnnualRent">Annual rent paid</label><input id="hraAnnualRent" inputmode="numeric"></div>
+                <div><label for="hraBasicSalary">Basic salary</label><input id="hraBasicSalary" inputmode="numeric"></div>
+                <div><label for="hraReceived">HRA received</label><input id="hraReceived" inputmode="numeric"></div>
+                <div><label for="hraLandlordPan">Landlord PAN</label><input id="hraLandlordPan"></div>
+                <div><label for="hraLandlordName">Landlord name</label><input id="hraLandlordName"></div>
+                <div><label for="hraMonthsRented">Months rented</label><input id="hraMonthsRented" inputmode="numeric"></div>
+                <div><label for="hraRentAgreement">Rent agreement available</label><select id="hraRentAgreement"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+                <div><label for="hraMetroCity">Metro city</label><select id="hraMetroCity"><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+              </div>
+              <div class="summary-box" id="hraSummary">HRA summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 16 (Salary/TDS)</h3>
+              <div class="grid">
+                <div><label for="f16EmployerName">Employer name</label><input id="f16EmployerName"></div>
+                <div><label for="f16EmployerTan">Employer TAN</label><input id="f16EmployerTan"></div>
+                <div><label for="f16EmployerAddress">Employer address</label><input id="f16EmployerAddress"></div>
+                <div><label for="f16EmployeePan">Employee PAN</label><input id="f16EmployeePan"></div>
+                <div><label for="f16GrossSalary">Gross salary</label><input id="f16GrossSalary" inputmode="numeric"></div>
+                <div><label for="f16ExemptAllowances">Exempt allowances</label><input id="f16ExemptAllowances" inputmode="numeric"></div>
+                <div><label for="f16TaxableSalary">Taxable salary</label><input id="f16TaxableSalary" inputmode="numeric"></div>
+                <div><label for="f16TdsDeducted">TDS deducted</label><input id="f16TdsDeducted" inputmode="numeric"></div>
+              </div>
+              <div class="summary-box" id="f16Summary">Form 16 summary will appear here.</div>
+            </div>
+
+            <div class="form-card">
+              <h3>Form 26AS (Tax Credit Statement)</h3>
+              <div class="grid">
+                <div><label for="f26asTotalTds">Total TDS</label><input id="f26asTotalTds" inputmode="numeric"></div>
+                <div><label for="f26asAdvanceTax">Advance tax</label><input id="f26asAdvanceTax" inputmode="numeric"></div>
+                <div><label for="f26asSelfAssessmentTax">Self-assessment tax</label><input id="f26asSelfAssessmentTax" inputmode="numeric"></div>
+                <div><label for="f26asRefundReceived">Refund received</label><input id="f26asRefundReceived" inputmode="numeric"></div>
+                <div><label for="f26asTcs">TCS</label><input id="f26asTcs" inputmode="numeric"></div>
+                <div><label for="f26asInterest">Interest under sections</label><input id="f26asInterest" inputmode="numeric"></div>
+                <div><label for="f26asChallanNumber">Challan number</label><input id="f26asChallanNumber"></div>
+                <div><label for="f26asRemark">Remark</label><input id="f26asRemark"></div>
+              </div>
+              <div class="summary-box" id="f26asSummary">Form 26AS summary will appear here.</div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- <section class="panel" aria-labelledby="ttsTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="ttsTitle">Text To Speech</h2>
+            <p>Write text, choose a voice, and play the generated audio.</p>
+          </div>
+          <span class="tag tts">TTS</span>
+        </div>
+        <div class="body">
+          <div>
+            <label for="ttsText">Text</label>
+            <textarea id="ttsText">Hello, how are you?</textarea>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label for="ttsLanguage">Language</label>
+              <select id="ttsLanguage">
+                <option value="hi-IN">Hindi</option>
+                <option value="en-IN" selected>English India</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="od-IN">Odia</option>
+                <option value="pa-IN">Punjabi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+              </select>
+            </div>
+            <div>
+              <label for="ttsSpeaker">Speaker</label>
+              <select id="ttsSpeaker">
+                <option value="shubh">shubh</option>
+                <option value="anushka">anushka</option>
+                <option value="abhilash">abhilash</option>
+                <option value="manisha">manisha</option>
+                <option value="vidya">vidya</option>
+                <option value="arya">arya</option>
+                <option value="karun">karun</option>
+                <option value="hitesh">hitesh</option>
+                <option value="aditya">aditya</option>
+                <option value="ritu">ritu</option>
+                <option value="priya">priya</option>
+                <option value="neha">neha</option>
+                <option value="rahul">rahul</option>
+                <option value="pooja">pooja</option>
+                <option value="rohan">rohan</option>
+              </select>
+            </div>
+            <div>
+              <label for="ttsFormat">Audio Format</label>
+              <select id="ttsFormat">
+                <option value="wav">wav</option>
+                <option value="mp3">mp3</option>
+              </select>
+            </div>
+            <div>
+              <label for="ttsPace">Pace</label>
+              <input id="ttsPace" type="number" min="0.5" max="2" step="0.1" value="1.0">
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="generateTts">Generate Speech</button>
+            <button class="secondary" id="downloadTts" disabled>Download Audio</button>
+          </div>
+
+          <audio id="ttsAudio" controls></audio>
+          <div class="message" id="ttsStatus"></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="sttTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="sttTitle">Speech To Text</h2>
+            <p>Upload audio or record from the microphone, then read the transcript.</p>
+          </div>
+          <span class="tag stt">STT</span>
+        </div>
+        <div class="body">
+          <div>
+            <label for="audioFile">Audio File</label>
+            <input id="audioFile" type="file" accept="audio/*">
+          </div>
+
+          <div class="grid">
+            <div>
+              <label for="sttLanguage">Language</label>
+              <select id="sttLanguage">
+                <option value="">Auto detect</option>
+                <option value="unknown">Unknown</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="en-IN">English India</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="od-IN">Odia</option>
+                <option value="pa-IN">Punjabi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+              </select>
+            </div>
+            <div>
+              <label for="sttMode">Mode</label>
+              <select id="sttMode">
+                <option value="transcribe">transcribe</option>
+                <option value="translate">translate</option>
+                <option value="verbatim">verbatim</option>
+                <option value="translit">translit</option>
+                <option value="codemix">codemix</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="transcribeFile">Transcribe File</button>
+            <button class="secondary" id="startRecording">Start Recording</button>
+            <button class="danger" id="stopRecording" disabled>Stop And Transcribe</button>
+          </div>
+
+          <div class="meter" aria-hidden="true"><span id="recordMeter"></span></div>
+          <div class="message" id="sttStatus"></div>
+          <div class="result" id="sttResult">Your transcript will appear here.</div>
+        </div>
+      </section> -->
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      recorder: null,
+      chunks: [],
+      meterTimer: null,
+      lastAudioUrl: null,
+      lastAudioBlob: null,
+      lastAudioFormat: "wav",
+      profile: {
+        data: null,
+        loading: false,
+        loaded: false,
+        lastReport: []
+      },
+      agent: {
+        active: false,
+        recorder: null,
+        stream: null,
+        chunks: [],
+        meterTimer: null,
+        autoStopTimer: null,
+        audioUrl: null,
+        conversation: [],
+        turn: 0,
+        busy: false
+      }
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const apiOriginFromQuery = new URLSearchParams(window.location.search).get("api_origin");
+    const apiOriginFromStorage = window.localStorage.getItem("voiceApiOrigin");
+    const defaultApiOrigin = window.location.origin.includes(":8000")
+      ? window.location.origin
+      : "http://127.0.0.1:8000";
+    const voiceApiOrigin = (apiOriginFromQuery || apiOriginFromStorage || defaultApiOrigin).replace(/\/$/, "");
+    const voiceApiBase = `${voiceApiOrigin}/voice-agent`;
+
+    $("serverUrl").textContent = voiceApiBase;
+
+    function setMessage(id, text, kind = "") {
+      const el = $(id);
+      el.textContent = text;
+      el.className = `message ${kind}`.trim();
+    }
+
+    async function readError(response) {
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        return data.detail ? JSON.stringify(data.detail, null, 2) : JSON.stringify(data, null, 2);
+      } catch {
+        return text || `${response.status} ${response.statusText}`;
+      }
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch(`${voiceApiBase}/health`);
+        const data = await response.json();
+        $("healthDot").classList.toggle("ok", Boolean(data.sarvam_key_set));
+        $("healthText").textContent = data.sarvam_key_set ? "Server ready" : "API key missing";
+      } catch {
+        $("healthText").textContent = "Server unavailable";
+      }
+    }
+
+    function escapeAttribute(value) {
+      return String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    }
+
+    function normalizeText(value) {
+      return String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    }
+
+    function compactText(value) {
+      return normalizeText(value).replace(/\s+/g, "");
+    }
+
+    function getByPath(source, path) {
+      return path.split(".").reduce((current, key) => (current && current[key] !== undefined ? current[key] : undefined), source);
+    }
+
+    function formatAddress(address) {
+      if (!address || typeof address !== "object") return "";
+      return [address.line1, address.line2, address.city, address.district, address.state, address.postal_code, address.country]
+        .filter(Boolean)
+        .join(", ");
+    }
+
+    function normalizeMoney(value) {
+      if (value === null || value === undefined || value === "") return "";
+      return String(value).replace(/[^0-9.]/g, "");
+    }
+
+    function flattenProfileEntries(source, prefix = []) {
+      if (source === null || source === undefined) return [];
+      if (Array.isArray(source)) {
+        return source.flatMap((item, index) => flattenProfileEntries(item, [...prefix, String(index)]));
+      }
+      if (typeof source === "object") {
+        return Object.entries(source).flatMap(([key, value]) => flattenProfileEntries(value, [...prefix, key]));
+      }
+      const path = prefix.join(".");
+      return [{ path, key: prefix[prefix.length - 1] || path, value: String(source) }];
+    }
+
+    function getFieldHint(element) {
+      const hints = [];
+      if (element.id) {
+        const label = document.querySelector(`label[for="${escapeAttribute(element.id)}"]`);
+        if (label) hints.push(label.textContent);
+      }
+      const parentLabel = element.closest("label");
+      if (parentLabel) hints.push(parentLabel.textContent);
+      const fieldsetLegend = element.closest("fieldset")?.querySelector("legend");
+      if (fieldsetLegend) hints.push(fieldsetLegend.textContent);
+      ["name", "id", "placeholder", "aria-label", "title", "autocomplete"].forEach((attribute) => {
+        const value = element.getAttribute(attribute);
+        if (value) hints.push(value);
+      });
+      return hints.join(" ");
+    }
+
+    function resolveAutocompleteValue(profile, autocomplete, element) {
+      const key = compactText(autocomplete);
+      if (!key) return null;
+
+      const mappings = {
+        name: () => profile.full_name || [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(" "),
+        "honorificprefix": () => profile.title,
+        "givenname": () => profile.first_name,
+        "additionalname": () => profile.middle_name,
+        "familyname": () => profile.last_name,
+        email: () => profile.email,
+        tel: () => profile.phone,
+        "telnational": () => profile.phone,
+        organization: () => profile.employer,
+        "streetaddress": () => formatAddress(profile.address) || formatAddress(profile.permanent_address),
+        "addressline1": () => profile.address?.line1 || profile.permanent_address?.line1,
+        "addressline2": () => profile.address?.line2 || profile.permanent_address?.line2,
+        "addresslevel2": () => profile.address?.city || profile.permanent_address?.city,
+        "addresslevel1": () => profile.address?.state || profile.permanent_address?.state,
+        "postalcode": () => profile.address?.postal_code || profile.permanent_address?.postal_code,
+        country: () => profile.address?.country || profile.permanent_address?.country,
+        bday: () => profile.date_of_birth,
+        birthday: () => profile.date_of_birth
+      };
+
+      const resolver = mappings[key];
+      return resolver ? resolver() : null;
+    }
+
+    function resolveProfileValue(profile, element, hintText) {
+      const normalizedHint = normalizeText(hintText);
+      const autocompleteValue = resolveAutocompleteValue(profile, element.getAttribute("autocomplete") || "", element);
+      if (autocompleteValue) return autocompleteValue;
+
+      const rules = [
+        { pattern: /(full name|applicant name|customer name|account holder name|beneficiary name)/, value: () => profile.full_name || [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(" ") },
+        { pattern: /(first name|given name|forename)/, value: () => profile.first_name },
+        { pattern: /(middle name|additional name)/, value: () => profile.middle_name },
+        { pattern: /(last name|family name|surname)/, value: () => profile.last_name },
+        { pattern: /(email|e mail)/, value: () => profile.email },
+        { pattern: /(mobile|phone|contact number|whatsapp)/, value: () => profile.phone },
+        { pattern: /(alternate phone|secondary phone|backup phone)/, value: () => profile.alternate_phone || profile.phone },
+        { pattern: /(date of birth|dob|birth date|birthday)/, value: () => profile.date_of_birth },
+        { pattern: /(gender|sex)/, value: () => profile.gender },
+        { pattern: /(marital status|married|single)/, value: () => profile.marital_status },
+        { pattern: /(nationality|citizenship)/, value: () => profile.nationality },
+        { pattern: /(father name|father's name)/, value: () => profile.father_name },
+        { pattern: /(mother name|mother's name)/, value: () => profile.mother_name },
+        { pattern: /(occupation|profession|job)/, value: () => profile.occupation },
+        { pattern: /(employer|company|organization)/, value: () => profile.employer },
+        { pattern: /(designation|job title|role)/, value: () => profile.designation },
+        { pattern: /(annual income|income|salary)/, value: () => profile.annual_income },
+        { pattern: /(pan|permanent account number)/, value: () => profile.pan },
+        { pattern: /(aadhaar|aadhar)/, value: () => profile.aadhaar },
+        { pattern: /(passport)/, value: () => profile.passport_number },
+        { pattern: /(voter id|voter)/, value: () => profile.voter_id },
+        { pattern: /(bank name|bank)/, value: () => profile.bank_details?.bank_name },
+        { pattern: /(account number|bank account)/, value: () => profile.bank_details?.account_number },
+        { pattern: /(ifsc)/, value: () => profile.bank_details?.ifsc },
+        { pattern: /(branch)/, value: () => profile.bank_details?.branch },
+        { pattern: /(address line 1|address 1|street|house|flat|building|plot|residence)/, value: () => profile.address?.line1 || profile.permanent_address?.line1 || formatAddress(profile.address) },
+        { pattern: /(address line 2|address 2|landmark|locality|area)/, value: () => profile.address?.line2 || profile.permanent_address?.line2 },
+        { pattern: /(city|town)/, value: () => profile.address?.city || profile.permanent_address?.city },
+        { pattern: /(district)/, value: () => profile.address?.district || profile.permanent_address?.district },
+        { pattern: /(state|province)/, value: () => profile.address?.state || profile.permanent_address?.state },
+        { pattern: /(postal code|pin code|pincode|zip)/, value: () => profile.address?.postal_code || profile.permanent_address?.postal_code },
+        { pattern: /(country)/, value: () => profile.address?.country || profile.permanent_address?.country },
+        { pattern: /(emergency contact name|contact person|nearest relative)/, value: () => profile.emergency_contact?.name },
+        { pattern: /(emergency contact phone|alternate contact|contact phone)/, value: () => profile.emergency_contact?.phone },
+        { pattern: /(relationship)/, value: () => profile.emergency_contact?.relationship },
+        { pattern: /(terms accepted|terms and conditions|consent)/, value: () => profile.preferences?.terms_accepted }
+      ];
+
+      for (const rule of rules) {
+        if (rule.pattern.test(normalizedHint)) {
+          const resolved = rule.value(profile);
+          if (resolved !== undefined && resolved !== null && String(resolved).trim() !== "") {
+            return resolved;
+          }
+        }
+      }
+
+      const flattened = flattenProfileEntries(profile);
+      const hintTokens = new Set(normalizedHint.split(/\s+/).filter(Boolean));
+      let bestMatch = null;
+      let bestScore = 0;
+
+      flattened.forEach((entry) => {
+        const entryTokens = new Set(normalizeText(entry.path).split(/\s+/).filter(Boolean));
+        const intersection = [...hintTokens].filter((token) => entryTokens.has(token)).length;
+        const pathCompact = compactText(entry.path);
+        const hintCompact = compactText(normalizedHint);
+        const exactBoost = pathCompact && hintCompact && (hintCompact.includes(pathCompact) || pathCompact.includes(hintCompact)) ? 2 : 0;
+        const score = intersection + exactBoost;
+        if (score > bestScore && entry.value.trim() !== "") {
+          bestMatch = entry;
+          bestScore = score;
+        }
+      });
+
+      return bestScore > 0 && bestMatch ? bestMatch.value : "";
+    }
+
+    function setNativeFieldValue(element, value) {
+      const prototype = Object.getPrototypeOf(element);
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+      if (descriptor?.set) {
+        descriptor.set.call(element, value);
+      } else {
+        element.value = value;
+      }
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    function selectOption(select, targetValue) {
+      const normalizedTarget = normalizeText(targetValue);
+      if (!normalizedTarget) return false;
+      const options = Array.from(select.options || []);
+      const match = options.find((option) => {
+        const optionValue = normalizeText(option.value);
+        const optionText = normalizeText(option.textContent);
+        return optionValue === normalizedTarget || optionText === normalizedTarget || optionValue.includes(normalizedTarget) || optionText.includes(normalizedTarget) || normalizedTarget.includes(optionValue) || normalizedTarget.includes(optionText);
+      });
+      if (!match) return false;
+      select.value = match.value;
+      select.dispatchEvent(new Event("input", { bubbles: true }));
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+
+    function valueLooksTruthy(value) {
+      return ["true", "yes", "1", "on", "checked", "accepted"].includes(normalizeText(value));
+    }
+
+    function fillRadioGroup(radios, profile) {
+      if (!radios.length) return null;
+      const hint = radios.map((radio) => getFieldHint(radio)).join(" ");
+      const resolved = resolveProfileValue(profile, radios[0], hint);
+      if (resolved === undefined || resolved === null || String(resolved).trim() === "") return null;
+      const normalizedResolved = normalizeText(resolved);
+      const match = radios.find((radio) => {
+        const radioHint = normalizeText([radio.value, radio.id, radio.getAttribute("aria-label"), radio.closest("label")?.textContent].filter(Boolean).join(" "));
+        return radioHint === normalizedResolved || radioHint.includes(normalizedResolved) || normalizedResolved.includes(radioHint);
+      });
+      if (!match) return null;
+      match.checked = true;
+      match.dispatchEvent(new Event("input", { bubbles: true }));
+      match.dispatchEvent(new Event("change", { bubbles: true }));
+      return { label: hint, value: match.value };
+    }
+
+    function fillSingleField(element, profile) {
+      if (element.disabled || element.readOnly || element.type === "hidden" || element.type === "submit" || element.type === "button" || element.type === "reset" || element.type === "image" || element.type === "file") {
+        return null;
+      }
+
+      const hint = getFieldHint(element);
+      const resolved = resolveProfileValue(profile, element, hint);
+      if (resolved === undefined || resolved === null || String(resolved).trim() === "") return null;
+
+      if (element.type === "checkbox") {
+        element.checked = typeof resolved === "boolean" ? resolved : valueLooksTruthy(resolved);
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+        return { label: hint, value: String(element.checked) };
+      }
+
+      if (element.tagName === "SELECT") {
+        const changed = selectOption(element, resolved);
+        return changed ? { label: hint, value: element.value } : null;
+      }
+
+      setNativeFieldValue(element, String(resolved));
+      return { label: hint, value: String(resolved) };
+    }
+
+    function renderItr1Summary() {
+      const summary = [
+        `Form type: ${$("itrFormType")?.value || "ITR-1"}`,
+        `Assessment year: ${$("itrAssessmentYear")?.value || "2025-26"}`,
+        `Name: ${$("itrFullName")?.value || ""}`,
+        `PAN: ${$("itrPan")?.value || ""}`,
+        `DOB: ${$("itrDob")?.value || ""}`,
+        `Salary income: ${$("itrSalaryIncome")?.value || ""}`,
+        `Bank: ${$("itrBankName")?.value || ""}`,
+        `City: ${$("itrCity")?.value || ""}`,
+        `Filing status: ${$("itrFilingStatus")?.value || "Original"}`
+      ].join("\n");
+
+      $("itr1Summary").textContent = summary;
+    }
+
+    function fillItr1FormFromProfile() {
+      if (!state.profile.loaded || !state.profile.data) {
+        return { filled: 0, fields: [] };
+      }
+
+      const profile = state.profile.data;
+      const fieldMap = [
+        ["itrFullName", profile.full_name || [profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(" ")],
+        ["itrPan", profile.pan],
+        ["itrDob", profile.date_of_birth],
+        ["itrGender", profile.gender],
+        ["itrPhone", profile.phone],
+        ["itrEmail", profile.email],
+        ["itrAadhaar", profile.aadhaar],
+        ["itrMaritalStatus", profile.marital_status],
+        ["itrResidentialStatus", "Resident"],
+        ["itrOccupation", profile.occupation],
+        ["itrEmployer", profile.employer],
+        ["itrAddress1", profile.address?.line1 || profile.permanent_address?.line1],
+        ["itrAddress2", profile.address?.line2 || profile.permanent_address?.line2],
+        ["itrCity", profile.address?.city || profile.permanent_address?.city],
+        ["itrState", profile.address?.state || profile.permanent_address?.state],
+        ["itrPincode", profile.address?.postal_code || profile.permanent_address?.postal_code],
+        ["itrCountry", profile.address?.country || profile.permanent_address?.country || "India"],
+        ["itrSalaryIncome", normalizeMoney(profile.annual_income)],
+        ["itrOtherIncome", normalizeMoney(profile.other_income)],
+        ["itrDeduction80C", normalizeMoney(profile.deductions?.deduction_80c)],
+        ["itrDeduction80D", normalizeMoney(profile.deductions?.deduction_80d)],
+        ["itrBankName", profile.bank_details?.bank_name],
+        ["itrAccountNumber", profile.bank_details?.account_number],
+        ["itrIfsc", profile.bank_details?.ifsc],
+        ["itrBranch", profile.bank_details?.branch]
+      ];
+
+      const filled = [];
+      fieldMap.forEach(([fieldId, value]) => {
+        const element = $(fieldId);
+        if (!element || value === undefined || value === null || String(value).trim() === "") return;
+        if (element.tagName === "SELECT") {
+          if (selectOption(element, value)) filled.push(fieldId);
+          return;
+        }
+        setNativeFieldValue(element, String(value));
+        filled.push(fieldId);
+      });
+
+      renderItr1Summary();
+      return { filled: filled.length, fields: filled };
+    }
+
+    function clearItr1Form() {
+      [
+        "itrFullName",
+        "itrPan",
+        "itrDob",
+        "itrPhone",
+        "itrEmail",
+        "itrAadhaar",
+        "itrOccupation",
+        "itrEmployer",
+        "itrAddress1",
+        "itrAddress2",
+        "itrCity",
+        "itrState",
+        "itrPincode",
+        "itrCountry",
+        "itrSalaryIncome",
+        "itrOtherIncome",
+        "itrDeduction80C",
+        "itrDeduction80D",
+        "itrBankName",
+        "itrAccountNumber",
+        "itrIfsc",
+        "itrBranch"
+      ].forEach((fieldId) => {
+        const element = $(fieldId);
+        if (!element) return;
+        if (element.tagName === "SELECT") {
+          element.selectedIndex = 0;
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+        } else {
+          setNativeFieldValue(element, "");
+        }
+      });
+
+      $("itrAssessmentYear").value = "2025-26";
+      $("itrFormType").value = "ITR-1";
+      $("itrResidentialStatus").value = "Resident";
+      $("itrFilingStatus").value = "Original";
+      $("itrVerification").value = "E-Verify later";
+      $("itrCountry").value = "India";
+      renderItr1Summary();
+    }
+
+    const RELATED_FORMS = {
+      itr2: {
+        label: "ITR-2",
+        patterns: [/(itr 2|itr2|it r two)/, /capital gains/],
+        summaryId: "itr2Summary",
+        fieldIds: ["itr2ShortTermCapitalGains", "itr2LongTermCapitalGains", "itr2CapitalGains", "itr2HousePropertyIncome", "itr2DividendIncome", "itr2AgriculturalIncome", "itr2ForeignIncome", "itr2ForeignAssets"],
+        map: (p, t) => [
+          ["itr2ShortTermCapitalGains", normalizeMoney(t.itr2?.short_term_capital_gains || p.short_term_capital_gains)],
+          ["itr2LongTermCapitalGains", normalizeMoney(t.itr2?.long_term_capital_gains || p.long_term_capital_gains)],
+          ["itr2CapitalGains", normalizeMoney(t.itr2?.capital_gains || p.capital_gains)],
+          ["itr2HousePropertyIncome", normalizeMoney(t.itr2?.house_property_income || p.house_property_income)],
+          ["itr2DividendIncome", normalizeMoney(t.itr2?.dividend_income || p.dividend_income)],
+          ["itr2AgriculturalIncome", normalizeMoney(t.itr2?.agricultural_income || p.agricultural_income)],
+          ["itr2ForeignIncome", normalizeMoney(t.itr2?.foreign_income || p.foreign_income)],
+          ["itr2ForeignAssets", t.itr2?.foreign_assets || p.foreign_assets || "No"]
+        ],
+        summary: () => ["STCG", "LTCG", "Capital gains", "House property", "Dividend", "Agricultural", "Foreign income", "Foreign assets"]
+      },
+      itr3: {
+        label: "ITR-3",
+        patterns: [/(itr 3|itr3|it r three)/, /business income/, /profession/],
+        summaryId: "itr3Summary",
+        fieldIds: ["itr3BusinessIncome", "itr3BusinessTurnover", "itr3ProfessionalReceipts", "itr3ProfitBeforeTax", "itr3Gstin", "itr3AuditRequired", "itr3BooksMaintained", "itr3DepreciationClaimed"],
+        map: (p, t) => [
+          ["itr3BusinessIncome", normalizeMoney(t.itr3?.business_income || p.business_income)],
+          ["itr3BusinessTurnover", normalizeMoney(t.itr3?.business_turnover || p.business_turnover)],
+          ["itr3ProfessionalReceipts", normalizeMoney(t.itr3?.professional_receipts || p.professional_receipts)],
+          ["itr3ProfitBeforeTax", normalizeMoney(t.itr3?.profit_before_tax || p.profit_before_tax)],
+          ["itr3Gstin", t.itr3?.gstin || p.gstin],
+          ["itr3AuditRequired", t.itr3?.audit_required || p.audit_required || "No"],
+          ["itr3BooksMaintained", t.itr3?.books_maintained || p.books_maintained || "Yes"],
+          ["itr3DepreciationClaimed", normalizeMoney(t.itr3?.depreciation_claimed || p.depreciation_claimed)]
+        ],
+        summary: () => ["Business income", "Turnover", "Professional receipts", "Profit before tax", "GSTIN", "Audit", "Books", "Depreciation"]
+      },
+      itr4: {
+        label: "ITR-4",
+        patterns: [/(itr 4|itr4|it r four)/, /presumptive/],
+        summaryId: "itr4Summary",
+        fieldIds: ["itr4Turnover44ad", "itr4Receipts44ada", "itr4PresumptiveIncome", "itr4CashReceiptsPercent", "itr4DigitalReceiptsPercent", "itr4CashDeposits", "itr4BusinessCode", "itr4AdvanceTaxPaid"],
+        map: (p, t) => [
+          ["itr4Turnover44ad", normalizeMoney(t.itr4?.turnover_44ad || p.turnover_44ad)],
+          ["itr4Receipts44ada", normalizeMoney(t.itr4?.receipts_44ada || p.receipts_44ada)],
+          ["itr4PresumptiveIncome", normalizeMoney(t.itr4?.presumptive_income || p.presumptive_income)],
+          ["itr4CashReceiptsPercent", normalizeMoney(t.itr4?.cash_receipts_percent || p.cash_receipts_percent)],
+          ["itr4DigitalReceiptsPercent", normalizeMoney(t.itr4?.digital_receipts_percent || p.digital_receipts_percent)],
+          ["itr4CashDeposits", normalizeMoney(t.itr4?.cash_deposits || p.cash_deposits)],
+          ["itr4BusinessCode", t.itr4?.business_code || p.business_code],
+          ["itr4AdvanceTaxPaid", normalizeMoney(t.itr4?.advance_tax_paid || p.advance_tax_paid)]
+        ],
+        summary: () => ["44AD turnover", "44ADA receipts", "Presumptive income", "Cash %", "Digital %", "Cash deposits", "Business code", "Advance tax"]
+      },
+      f80c: {
+        label: "Form 80C",
+        patterns: [/80c/, /deduction 80c/],
+        summaryId: "f80cSummary",
+        fieldIds: ["f80cAmount", "f80cInstrument", "f80cPolicyNumber", "f80cProvider", "f80cPpfAmount", "f80cElssAmount", "f80cLifeInsurancePremium", "f80cTuitionFees", "f80cHomeLoanPrincipal", "f80cTotalClaimed"],
+        map: (p, t) => [
+          ["f80cAmount", normalizeMoney(t.f80c?.amount || p.deductions?.deduction_80c)],
+          ["f80cInstrument", t.f80c?.instrument || "PPF"],
+          ["f80cPolicyNumber", t.f80c?.policy_number || p.policy_number],
+          ["f80cProvider", t.f80c?.provider || "HDFC Life"],
+          ["f80cPpfAmount", normalizeMoney(t.f80c?.ppf_amount || p.ppf_amount)],
+          ["f80cElssAmount", normalizeMoney(t.f80c?.elss_amount || p.elss_amount)],
+          ["f80cLifeInsurancePremium", normalizeMoney(t.f80c?.life_insurance_premium || p.life_insurance_premium)],
+          ["f80cTuitionFees", normalizeMoney(t.f80c?.tuition_fees || p.tuition_fees)],
+          ["f80cHomeLoanPrincipal", normalizeMoney(t.f80c?.home_loan_principal || p.home_loan_principal)],
+          ["f80cTotalClaimed", normalizeMoney(t.f80c?.total_claimed || p.total_claimed)]
+        ],
+        summary: () => ["Amount", "Instrument", "Policy/Folio", "Provider", "PPF", "ELSS", "LIC", "Tuition fees", "Home loan principal", "Total claimed"]
+      },
+      f80d: {
+        label: "Form 80D",
+        patterns: [/80d/, /medical insurance/],
+        summaryId: "f80dSummary",
+        fieldIds: ["f80dSelfPremium", "f80dSpouseChildrenPremium", "f80dParentsPremium", "f80dPreventiveCheckup", "f80dInsurer", "f80dPolicyNumber", "f80dSeniorCitizen", "f80dModeOfPayment"],
+        map: (p, t) => [
+          ["f80dSelfPremium", normalizeMoney(t.f80d?.self_premium || p.deductions?.deduction_80d)],
+          ["f80dSpouseChildrenPremium", normalizeMoney(t.f80d?.spouse_children_premium || p.spouse_children_premium)],
+          ["f80dParentsPremium", normalizeMoney(t.f80d?.parents_premium || p.parents_premium)],
+          ["f80dPreventiveCheckup", normalizeMoney(t.f80d?.preventive_checkup || p.preventive_checkup)],
+          ["f80dInsurer", t.f80d?.insurer || "Star Health"],
+          ["f80dPolicyNumber", t.f80d?.policy_number || p.policy_number],
+          ["f80dSeniorCitizen", t.f80d?.parents_senior_citizen || "No"],
+          ["f80dModeOfPayment", t.f80d?.mode_of_payment || p.mode_of_payment || "UPI"]
+        ],
+        summary: () => ["Self premium", "Spouse/children", "Parents premium", "Checkup", "Insurer", "Policy no.", "Senior citizen", "Payment mode"]
+      },
+      f80e: {
+        label: "Form 80E",
+        patterns: [/80e/, /education loan/],
+        summaryId: "f80eSummary",
+        fieldIds: ["f80eLender", "f80eLoanAccount", "f80eInterestPaid", "f80eStudentName", "f80eInstitution", "f80eCourse", "f80eLoanStartYear", "f80eCertificateNumber"],
+        map: (p, t) => [
+          ["f80eLender", t.f80e?.lender || p.education_loan_lender],
+          ["f80eLoanAccount", t.f80e?.loan_account || p.education_loan_account],
+          ["f80eInterestPaid", normalizeMoney(t.f80e?.interest_paid || p.education_loan_interest_paid)],
+          ["f80eStudentName", t.f80e?.student_name || p.full_name],
+          ["f80eInstitution", t.f80e?.institution || p.institution],
+          ["f80eCourse", t.f80e?.course || p.course],
+          ["f80eLoanStartYear", t.f80e?.loan_start_year || p.loan_start_year],
+          ["f80eCertificateNumber", t.f80e?.certificate_number || p.certificate_number]
+        ],
+        summary: () => ["Lender", "Loan account", "Interest paid", "Student", "Institution", "Course", "Start year", "Certificate"]
+      },
+      f80g: {
+        label: "Form 80G",
+        patterns: [/80g/, /donation/],
+        summaryId: "f80gSummary",
+        fieldIds: ["f80gDoneeName", "f80gDoneePan", "f80gDonationAmount", "f80gEligiblePercent", "f80gDonationDate", "f80gPaymentMode", "f80gApprovalNumber", "f80gReceiptNumber"],
+        map: (p, t) => [
+          ["f80gDoneeName", t.f80g?.donee_name || p.donee_name],
+          ["f80gDoneePan", t.f80g?.donee_pan || p.donee_pan],
+          ["f80gDonationAmount", normalizeMoney(t.f80g?.donation_amount || p.donation_amount)],
+          ["f80gEligiblePercent", String(t.f80g?.eligible_percent || p.eligible_percent || "50")],
+          ["f80gDonationDate", t.f80g?.donation_date || p.donation_date],
+          ["f80gPaymentMode", t.f80g?.payment_mode || p.payment_mode || "UPI"],
+          ["f80gApprovalNumber", t.f80g?.approval_number || p.approval_number],
+          ["f80gReceiptNumber", t.f80g?.receipt_number || p.receipt_number]
+        ],
+        summary: () => ["Donee", "Donee PAN", "Donation", "Eligible %", "Donation date", "Payment mode", "Approval no.", "Receipt no."]
+      },
+      hra: {
+        label: "HRA Claim",
+        patterns: [/hra/, /house rent allowance/, /rent claim/],
+        summaryId: "hraSummary",
+        fieldIds: ["hraAnnualRent", "hraBasicSalary", "hraReceived", "hraLandlordPan", "hraLandlordName", "hraMonthsRented", "hraRentAgreement", "hraMetroCity"],
+        map: (p, t) => [
+          ["hraAnnualRent", normalizeMoney(t.hra?.annual_rent || p.annual_rent)],
+          ["hraBasicSalary", normalizeMoney(t.hra?.basic_salary || p.basic_salary)],
+          ["hraReceived", normalizeMoney(t.hra?.hra_received || p.hra_received)],
+          ["hraLandlordPan", t.hra?.landlord_pan || p.landlord_pan],
+          ["hraLandlordName", t.hra?.landlord_name || p.landlord_name],
+          ["hraMonthsRented", normalizeMoney(t.hra?.months_rented || p.months_rented)],
+          ["hraRentAgreement", t.hra?.rent_agreement || p.rent_agreement || "Yes"],
+          ["hraMetroCity", t.hra?.metro_city || p.metro_city || "Yes"]
+        ],
+        summary: () => ["Annual rent", "Basic salary", "HRA received", "Landlord PAN", "Landlord name", "Months rented", "Agreement", "Metro"]
+      },
+      f16: {
+        label: "Form 16",
+        patterns: [/form 16|form16/, /salary tds/, /tan/],
+        summaryId: "f16Summary",
+        fieldIds: ["f16EmployerName", "f16EmployerTan", "f16EmployerAddress", "f16EmployeePan", "f16GrossSalary", "f16ExemptAllowances", "f16TaxableSalary", "f16TdsDeducted"],
+        map: (p, t) => [
+          ["f16EmployerName", t.f16?.employer_name || p.employer],
+          ["f16EmployerTan", t.f16?.employer_tan || p.employer_tan],
+          ["f16EmployerAddress", t.f16?.employer_address || p.employer_address],
+          ["f16EmployeePan", t.f16?.employee_pan || p.pan],
+          ["f16GrossSalary", normalizeMoney(t.f16?.gross_salary || p.annual_income)],
+          ["f16ExemptAllowances", normalizeMoney(t.f16?.exempt_allowances || p.exempt_allowances)],
+          ["f16TaxableSalary", normalizeMoney(t.f16?.taxable_salary || p.taxable_salary)],
+          ["f16TdsDeducted", normalizeMoney(t.f16?.tds_deducted || p.tds_deducted)]
+        ],
+        summary: () => ["Employer", "TAN", "Address", "Employee PAN", "Gross salary", "Exempt allowances", "Taxable salary", "TDS deducted"]
+      },
+      f26as: {
+        label: "Form 26AS",
+        patterns: [/26as/, /tax credit statement/],
+        summaryId: "f26asSummary",
+        fieldIds: ["f26asTotalTds", "f26asAdvanceTax", "f26asSelfAssessmentTax", "f26asRefundReceived", "f26asTcs", "f26asInterest", "f26asChallanNumber", "f26asRemark"],
+        map: (p, t) => [
+          ["f26asTotalTds", normalizeMoney(t.f26as?.total_tds || p.total_tds)],
+          ["f26asAdvanceTax", normalizeMoney(t.f26as?.advance_tax || p.advance_tax)],
+          ["f26asSelfAssessmentTax", normalizeMoney(t.f26as?.self_assessment_tax || p.self_assessment_tax)],
+          ["f26asRefundReceived", normalizeMoney(t.f26as?.refund_received || p.refund_received)],
+          ["f26asTcs", normalizeMoney(t.f26as?.tcs || p.tcs)],
+          ["f26asInterest", normalizeMoney(t.f26as?.interest || p.interest)],
+          ["f26asChallanNumber", t.f26as?.challan_number || p.challan_number],
+          ["f26asRemark", t.f26as?.remark || p.remark]
+        ],
+        summary: () => ["Total TDS", "Advance tax", "Self-assessment tax", "Refund", "TCS", "Interest", "Challan", "Remark"]
+      }
+    };
+
+    const RELATED_FORM_BUTTON_IDS = {
+      itr2: "fillItr2Form",
+      itr3: "fillItr3Form",
+      itr4: "fillItr4Form",
+      f80c: "fillForm80c",
+      f80d: "fillForm80d",
+      f80e: "fillForm80e",
+      f80g: "fillForm80g",
+      hra: "fillHraForm",
+      f16: "fillForm16",
+      f26as: "fillForm26as"
+    };
+
+    function setRelatedFormButtonsDisabled(disabled) {
+      Object.values(RELATED_FORM_BUTTON_IDS).forEach((buttonId) => {
+        const button = $(buttonId);
+        if (button) button.disabled = disabled;
+      });
+    }
+
+    function applyFieldMap(fieldMap) {
+      const filled = [];
+      fieldMap.forEach(([fieldId, value]) => {
+        const element = $(fieldId);
+        if (!element || value === undefined || value === null || String(value).trim() === "") return;
+        if (element.tagName === "SELECT") {
+          if (selectOption(element, value)) filled.push(fieldId);
+          return;
+        }
+        setNativeFieldValue(element, String(value));
+        filled.push(fieldId);
+      });
+      return filled;
+    }
+
+    function renderRelatedSummary(key) {
+      const def = RELATED_FORMS[key];
+      if (!def) return;
+      const labels = def.summary();
+      const lines = labels.map((label, index) => `${label}: ${$(def.fieldIds[index])?.value || ""}`);
+      $(def.summaryId).textContent = lines.join("\n");
+    }
+
+    function fillRelatedFormByKey(key, profile) {
+      const def = RELATED_FORMS[key];
+      if (!def) return 0;
+      const taxForms = profile.tax_forms || {};
+      const filled = applyFieldMap(def.map(profile, taxForms));
+      renderRelatedSummary(key);
+      return filled.length;
+    }
+
+    function fillAllRelatedFormsFromProfile() {
+      if (!state.profile.loaded || !state.profile.data) {
+        return { forms: 0, fields: 0 };
+      }
+
+      let totalFields = 0;
+      let formCount = 0;
+      Object.keys(RELATED_FORMS).forEach((key) => {
+        const count = fillRelatedFormByKey(key, state.profile.data);
+        if (count > 0) formCount += 1;
+        totalFields += count;
+      });
+      return { forms: formCount, fields: totalFields };
+    }
+
+    function clearRelatedForms() {
+      Object.values(RELATED_FORMS).forEach((def) => {
+        def.fieldIds.forEach((fieldId) => {
+          const element = $(fieldId);
+          if (!element) return;
+          if (element.tagName === "SELECT") {
+            element.selectedIndex = 0;
+            element.dispatchEvent(new Event("change", { bubbles: true }));
+          } else {
+            setNativeFieldValue(element, "");
+          }
+        });
+        renderRelatedSummary(Object.keys(RELATED_FORMS).find((k) => RELATED_FORMS[k] === def));
+      });
+    }
+
+    function matchesItr1FillCommand(text) {
+      const normalized = normalizeText(text);
+      return /(fill|complete|help me fill|please fill|file).*(itr 1|itr1|income tax return|income tax form)/.test(normalized)
+        || /(itr 1|itr1|it r one).*(form|return)/.test(normalized)
+        || /fill.*income tax return/.test(normalized);
+    }
+
+    function detectRelatedFormCommand(text) {
+      const normalized = normalizeText(text);
+
+      if (/(fill|complete|file).*(all).*(tax|itr|forms)/.test(normalized)) {
+        return "all";
+      }
+
+      for (const [key, def] of Object.entries(RELATED_FORMS)) {
+        if (def.patterns.some((pattern) => pattern.test(normalized))) {
+          return key;
+        }
+      }
+
+      return null;
+    }
+
+    async function applyAgentCommandIfNeeded(transcript) {
+      const isItr1 = matchesItr1FillCommand(transcript);
+      const relatedKey = detectRelatedFormCommand(transcript);
+      if (!isItr1 && !relatedKey) return null;
+
+      if (!state.profile.loaded || !state.profile.data) {
+        await loadProfileData();
+      }
+
+      if (!state.profile.loaded || !state.profile.data) {
+        return {
+          assistantText: "I couldn't load data.json right now, so I couldn't fill the ITR-1 form.",
+          actionTaken: false
+        };
+      }
+
+      if (isItr1) {
+        const result = fillItr1FormFromProfile();
+        return {
+          assistantText: result.filled
+            ? `Done. I filled the ITR-1 form using data.json and populated ${result.filled} fields.`
+            : "I loaded the profile, but I couldn't find matching ITR-1 fields to fill.",
+          actionTaken: true
+        };
+      }
+
+      if (relatedKey === "all") {
+        const result = fillAllRelatedFormsFromProfile();
+        return {
+          assistantText: result.fields
+            ? `Done. I filled ${result.forms} related forms and populated ${result.fields} fields from data.json.`
+            : "I loaded the profile, but I couldn't find matching related form fields to fill.",
+          actionTaken: true
+        };
+      }
+
+      const filled = fillRelatedFormByKey(relatedKey, state.profile.data);
+      return {
+        assistantText: filled
+          ? `Done. I filled the ${RELATED_FORMS[relatedKey].label} fields using data.json.`
+          : `I loaded data.json, but I couldn't find values to fill ${RELATED_FORMS[relatedKey].label}.`,
+        actionTaken: true
+      };
+    }
+
+    function renderProfileSummary(profile) {
+      const chips = $("profileChips");
+      chips.textContent = "";
+
+      const summaryValues = [
+        ["Name", profile.full_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ")],
+        ["Email", profile.email],
+        ["Phone", profile.phone],
+        ["PAN", profile.pan],
+        ["City", profile.address?.city || profile.permanent_address?.city],
+        ["Bank", profile.bank_details?.bank_name]
+      ].filter(([, value]) => value);
+
+      summaryValues.forEach(([label, value]) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${label}: ${value}`;
+        chips.appendChild(chip);
+      });
+
+      $("profilePreview").textContent = JSON.stringify(profile, null, 2);
+    }
+
+    async function loadProfileData() {
+      if (state.profile.loading) return;
+      state.profile.loading = true;
+      $("fillFormsOnPage").disabled = true;
+      setMessage("profileStatus", "Loading data.json...");
+
+      try {
+        const response = await fetch(`${voiceApiBase}/data.json`);
+        if (!response.ok) {
+          throw new Error(await readError(response));
+        }
+
+        const data = await response.json();
+        state.profile.data = data;
+        state.profile.loaded = true;
+        renderProfileSummary(data);
+        $("fillFormsOnPage").disabled = false;
+        $("fillItr1Form").disabled = false;
+        setRelatedFormButtonsDisabled(false);
+        setMessage("profileStatus", "Profile loaded. Ready to fill matching form fields.", "ok");
+      } catch (error) {
+        state.profile.data = null;
+        state.profile.loaded = false;
+        $("profilePreview").textContent = "Load data.json to preview the dummy profile data.";
+        $("profileChips").textContent = "";
+        $("fillItr1Form").disabled = true;
+        setRelatedFormButtonsDisabled(true);
+        setMessage("profileStatus", error.message, "error");
+      } finally {
+        state.profile.loading = false;
+      }
+    }
+
+    async function refreshProfilePreview() {
+      if (!state.profile.loaded) {
+        await loadProfileData();
+        return;
+      }
+      renderProfileSummary(state.profile.data);
+      setMessage("profileStatus", "Profile preview refreshed.", "ok");
+    }
+
+    async function fillFormsFromProfile() {
+      if (!state.profile.loaded || !state.profile.data) {
+        await loadProfileData();
+      }
+
+      const profile = state.profile.data;
+      if (!profile) return;
+
+      const fields = Array.from(document.querySelectorAll("input, select, textarea"));
+      const filled = [];
+      const radioGroups = new Map();
+
+      fields.forEach((field) => {
+        if (field.type === "radio" && field.name) {
+          if (!radioGroups.has(field.name)) radioGroups.set(field.name, []);
+          radioGroups.get(field.name).push(field);
+          return;
+        }
+        const result = fillSingleField(field, profile);
+        if (result) filled.push(result);
+      });
+
+      radioGroups.forEach((group) => {
+        const result = fillRadioGroup(group, profile);
+        if (result) filled.push(result);
+      });
+
+      state.profile.lastReport = filled;
+      const uniqueFilled = new Map();
+      filled.forEach((item) => {
+        if (!uniqueFilled.has(item.label)) uniqueFilled.set(item.label, item.value);
+      });
+
+      if (!fields.length) {
+        setMessage("profileStatus", "No form fields were found on this page.", "error");
+        return;
+      }
+
+      if (!filled.length) {
+        setMessage("profileStatus", "Loaded profile data, but no matching form fields were found on the page.", "error");
+        return;
+      }
+
+      const count = uniqueFilled.size;
+      setMessage("profileStatus", `Filled ${count} matching field${count === 1 ? "" : "s"} from data.json.`, "ok");
+    }
+
+    function microphoneSupportMessage() {
+      if (!window.isSecureContext) {
+        return "Open this page as http://localhost:8000/. Browsers block microphone access on insecure origins like http://0.0.0.0:8000, LAN IPs, and many IDE previews.";
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return "This browser or embedded preview does not expose microphone access. Open http://localhost:8000/ in Chrome, Edge, or Firefox.";
+      }
+
+      if (!window.MediaRecorder) {
+        return "This browser can access the microphone but does not support MediaRecorder. Use Chrome, Edge, or Firefox.";
+      }
+
+      return "";
+    }
+
+    function setAgentState(text, kind = "") {
+      setMessage("agentStatus", text, kind);
+    }
+
+    function updateAgentButtons() {
+      const isRecording = state.agent.recorder && state.agent.recorder.state === "recording";
+      $("startAgent").disabled = state.agent.active;
+      $("sendAgentTurn").disabled = !state.agent.active || !isRecording || state.agent.busy;
+      $("stopAgent").disabled = !state.agent.active;
+      $("resetAgent").disabled = state.agent.active || state.agent.conversation.length === 0;
+    }
+
+    function renderAgentConversation() {
+      const root = $("agentConversation");
+      root.textContent = "";
+
+      if (!state.agent.conversation.length) {
+        root.textContent = "Your voice conversation will appear here.";
+        updateAgentButtons();
+        return;
+      }
+
+      state.agent.conversation.forEach((message, index) => {
+        const turn = document.createElement("div");
+        turn.className = `turn ${message.role}`;
+
+        const label = document.createElement("strong");
+        label.textContent = `${message.role === "user" ? "You" : "Assistant"} · ${index + 1}`;
+
+        const body = document.createElement("p");
+        body.textContent = message.content;
+
+        turn.append(label, body);
+        root.appendChild(turn);
+      });
+      root.scrollTop = root.scrollHeight;
+      updateAgentButtons();
+    }
+
+    function clearAgentTimers() {
+      clearInterval(state.agent.meterTimer);
+      clearTimeout(state.agent.autoStopTimer);
+      state.agent.meterTimer = null;
+      state.agent.autoStopTimer = null;
+      $("agentMeter").style.width = "0%";
+    }
+
+    function stopAgentStream() {
+      if (state.agent.stream) {
+        state.agent.stream.getTracks().forEach((track) => track.stop());
+        state.agent.stream = null;
+      }
+    }
+
+    function buildAgentSttForm(file) {
+      const form = new FormData();
+      form.append("file", file, file.name || "agent-turn.webm");
+      form.append("language_code", $("agentLanguage").value);
+      form.append("model", "saaras:v3");
+      form.append("mode", "transcribe");
+      return form;
+    }
+
+    function agentMessages() {
+      const languageCode = $("agentLanguage").value;
+      let languageInstruction = "Reply in the user's language when possible.";
+      
+      // Map language codes to specific instructions
+      const languageMap = {
+        "en-IN": "Always respond in English. Be conversational and natural. Respond directly without internal reasoning.",
+        "hi-IN": "Always respond in Hindi using Devanagari script. Be conversational and natural. Respond directly without internal reasoning.",
+        "mr-IN": "Always respond in Marathi using Devanagari script. Be conversational and natural. Respond directly without internal reasoning.",
+        "ta-IN": "Always respond in Tamil. Be conversational and natural. Respond directly without internal reasoning.",
+        "te-IN": "Always respond in Telugu. Be conversational and natural. Respond directly without internal reasoning.",
+        "kn-IN": "Always respond in Kannada. Be conversational and natural. Respond directly without internal reasoning.",
+        "ml-IN": "Always respond in Malayalam. Be conversational and natural. Respond directly without internal reasoning.",
+        "gu-IN": "Always respond in Gujarati. Be conversational and natural. Respond directly without internal reasoning.",
+        "pa-IN": "Always respond in Punjabi. Be conversational and natural. Respond directly without internal reasoning.",
+        "bn-IN": "Always respond in Bengali using Bengali script. Be conversational and natural. Respond directly without internal reasoning.",
+        "od-IN": "Always respond in Odia using Odia script. Be conversational and natural. Respond directly without internal reasoning.",
+      };
+      
+      if (languageMap[languageCode]) {
+        languageInstruction = languageMap[languageCode];
+      }
+      
+      return [
+        {
+          role: "system",
+          content: `You are a helpful voice assistant. Keep replies concise, natural, and suitable for speech. ${languageInstruction}
+
+IMPORTANT - TAX SAVING GUIDANCE:
+If the user asks about tax saving, income tax deductions, tax filing, or related topics, provide the following information:
+
+COMMON TAX SAVING FORMS AND STEPS:
+
+1. **ITR (Income Tax Return) Filing:**
+   - Forms: ITR-1 (Individuals with salary income), ITR-2 (Capital gains), ITR-3 (Business/Profession), ITR-4 (Presumptive income)
+   - Steps: Register PAN → Gather documents → Calculate taxable income → Fill applicable ITR form → e-verify or physically sign → Submit through e-filing portal → Keep acknowledgment
+
+2. **Form 80C - Deduction up to ₹1.5 lakhs:**
+   - Includes: LIC premiums, EPF, ELSS mutual funds, principal repayment of home loan, NSC, PPF
+   - Steps: Purchase qualifying instruments → Keep receipts → Claim deduction while filing ITR
+
+3. **Form 80D - Medical Insurance Premium (up to ₹25,000 for self/family, ₹50,000 for senior citizens):**
+   - Steps: Buy health insurance → Keep policy documents and premium receipts → Claim during tax filing
+
+4. **Form 80E - Education Loan Interest (up to ₹50,000):**
+   - Steps: Take education loan → Pay interest → Keep loan documents and receipts → Claim in ITR
+
+5. **Form 80G - Charitable Donations (50% or 100% deduction):**
+   - Steps: Donate to registered charitable organizations → Keep receipts with 80G certification → Claim deduction
+
+6. **HRA Claim (House Rent Allowance):**
+   - Steps: Collect rent receipts → Get rent agreement notarized → Submit with ITR if claiming HRA
+
+7. **Home Loan Interest and Principal Repayment:**
+   - Form: 80C (principal up to ₹1.5 lakhs) and 80EE (interest up to ₹2 lakhs for first-time buyers)
+   - Steps: Keep loan documents → Get annual certificate from bank → Claim both components
+
+GENERAL TAX FILING STEPS:
+1. Gather all documents (salary slips, investment proofs, receipts)
+2. Calculate total income and deductions
+3. Choose appropriate ITR form
+4. Visit e-filing portal (incometaxindia.gov.in)
+5. Fill form with all details
+6. Review and e-verify or sign
+7. Submit and keep acknowledgment
+
+                    Keep explanations conversational and suitable for speech. Use simple language.
+
+                    IMPORTANT INSTRUCTIONS:
+                    - You ARE the tax professional. Do not suggest the user consult with a tax professional.
+                    - Provide definitive tax-saving advice and guidance based on the information provided.
+                    - Answer questions directly and confidently without deflecting to third parties.
+                    - Only mention consulting with a professional if the user has a very specific/complex case that requires their unique circumstances to be analyzed in detail.`
+        },
+        ...state.agent.conversation
+      ];
+    }
+
+    function base64ToAudioBlob(audioBase64, format) {
+      const binary = atob(audioBase64);
+      const chunks = [];
+      for (let offset = 0; offset < binary.length; offset += 1024) {
+        const slice = binary.slice(offset, offset + 1024);
+        const bytes = new Uint8Array(slice.length);
+        for (let i = 0; i < slice.length; i += 1) {
+          bytes[i] = slice.charCodeAt(i);
+        }
+        chunks.push(bytes);
+      }
+
+      const mime = format === "wav" ? "audio/wav" : `audio/${format}`;
+      return new Blob(chunks, { type: mime });
+    }
+
+    async function startAgent() {
+      const supportMessage = microphoneSupportMessage();
+      if (supportMessage) {
+        setAgentState(supportMessage, "error");
+        return;
+      }
+
+      if (state.recorder && state.recorder.state === "recording") {
+        setAgentState("Stop the Speech To Text recorder before starting the agent.", "error");
+        return;
+      }
+
+      state.agent.active = true;
+      state.agent.busy = false;
+      state.agent.turn += 1;
+      setAgentState("Listening...");
+      updateAgentButtons();
+      await beginAgentListening();
+    }
+
+    async function beginAgentListening() {
+      if (!state.agent.active || state.agent.busy) return;
+
+      try {
+        state.agent.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.agent.chunks = [];
+        const recorderOptions = MediaRecorder.isTypeSupported("audio/webm")
+          ? { mimeType: "audio/webm" }
+          : undefined;
+        state.agent.recorder = new MediaRecorder(state.agent.stream, recorderOptions);
+        state.agent.recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) state.agent.chunks.push(event.data);
+        };
+        state.agent.recorder.onstop = async () => {
+          clearAgentTimers();
+          stopAgentStream();
+          const mimeType = cleanMimeType(state.agent.recorder.mimeType);
+          const blob = new Blob(state.agent.chunks, { type: mimeType });
+          state.agent.recorder = null;
+          updateAgentButtons();
+          await processAgentTurn(blob);
+        };
+
+        state.agent.recorder.start(250);
+        setAgentState("Listening...");
+        updateAgentButtons();
+
+        let width = 12;
+        state.agent.meterTimer = setInterval(() => {
+          width = width >= 94 ? 12 : width + 8;
+          $("agentMeter").style.width = `${width}%`;
+        }, 180);
+
+        const turnMs = Math.max(2, Math.min(20, Number($("agentTurnSeconds").value || 6))) * 1000;
+        state.agent.autoStopTimer = setTimeout(() => {
+          stopCurrentAgentRecording();
+        }, turnMs);
+      } catch (error) {
+        state.agent.active = false;
+        clearAgentTimers();
+        stopAgentStream();
+        setAgentState(error.message, "error");
+        updateAgentButtons();
+      }
+    }
+
+    function stopCurrentAgentRecording() {
+      if (!state.agent.recorder || state.agent.recorder.state !== "recording") return;
+      clearAgentTimers();
+      state.agent.busy = true;
+      setAgentState("Transcribing...");
+      updateAgentButtons();
+      state.agent.recorder.stop();
+    }
+
+    async function processAgentTurn(blob) {
+      if (!state.agent.active) return;
+
+      if (blob.size < 1024) {
+        state.agent.busy = false;
+        setAgentState("No speech detected. Listening again...");
+        updateAgentButtons();
+        setTimeout(beginAgentListening, 500);
+        return;
+      }
+
+      try {
+        setAgentState("Transcribing...");
+        const file = new File([blob], "agent-turn.webm", { type: blob.type });
+        const sttResponse = await fetch(`${voiceApiBase}/stt/transcribe`, {
+          method: "POST",
+          body: buildAgentSttForm(file)
+        });
+
+        if (!sttResponse.ok) {
+          throw new Error(await readError(sttResponse));
+        }
+
+        if (!state.agent.active) return;
+        const sttData = await sttResponse.json();
+        const transcript = (sttData.transcript || "").trim();
+        if (!transcript) {
+          state.agent.busy = false;
+          setAgentState("No transcript found. Listening again...");
+          updateAgentButtons();
+          setTimeout(beginAgentListening, 500);
+          return;
+        }
+
+        state.agent.conversation.push({ role: "user", content: transcript });
+        renderAgentConversation();
+
+        const commandResult = await applyAgentCommandIfNeeded(transcript);
+        if (commandResult) {
+          state.agent.conversation.push({ role: "assistant", content: commandResult.assistantText });
+          renderAgentConversation();
+          await speakTextWithTts(commandResult.assistantText);
+          return;
+        }
+
+        setAgentState("Thinking...");
+        const agentResponse = await fetch(`${voiceApiBase}/agent/respond`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: agentMessages(),
+            model: $("agentModel").value,
+            temperature: 0.4,
+            max_tokens: 1024,
+            target_language_code: $("agentLanguage").value,
+            speaker: $("agentSpeaker").value,
+            output_format: "wav"
+          })
+        });
+
+        if (!agentResponse.ok) {
+          throw new Error(await readError(agentResponse));
+        }
+
+        if (!state.agent.active) return;
+        const agentData = await agentResponse.json();
+        const assistantText = (agentData.assistant_text || "").trim();
+        if (!assistantText) {
+          throw new Error("The assistant response was empty.");
+        }
+
+        state.agent.conversation.push({ role: "assistant", content: assistantText });
+        renderAgentConversation();
+        await playAgentAudio(agentData.audio_base64, agentData.audio_format || "wav");
+      } catch (error) {
+        state.agent.active = false;
+        state.agent.busy = false;
+        clearAgentTimers();
+        stopAgentStream();
+        setAgentState(error.message, "error");
+        updateAgentButtons();
+      }
+    }
+
+    async function playAgentAudio(audioBase64, format) {
+      const audio = $("agentAudio");
+      const blob = base64ToAudioBlob(audioBase64, format);
+      if (state.agent.audioUrl) URL.revokeObjectURL(state.agent.audioUrl);
+      state.agent.audioUrl = URL.createObjectURL(blob);
+      audio.src = state.agent.audioUrl;
+      state.agent.busy = true;
+      setAgentState("Speaking...");
+      updateAgentButtons();
+
+      audio.onended = () => {
+        state.agent.busy = false;
+        updateAgentButtons();
+        if (state.agent.active) {
+          setAgentState("Listening again...");
+          setTimeout(beginAgentListening, 450);
+        } else {
+          setAgentState("Idle");
+        }
+      };
+
+      await audio.play();
+    }
+
+    async function speakTextWithTts(text) {
+      const response = await fetch(`${voiceApiBase}/tts/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          target_language_code: $("agentLanguage").value,
+          speaker: $("agentSpeaker").value,
+          model: "bulbul:v3",
+          pace: 1,
+          output_format: "wav"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      const audioBlob = await response.blob();
+      if (state.agent.audioUrl) URL.revokeObjectURL(state.agent.audioUrl);
+      state.agent.audioUrl = URL.createObjectURL(audioBlob);
+      const audio = $("agentAudio");
+      audio.src = state.agent.audioUrl;
+      state.agent.busy = true;
+      setAgentState("Speaking...");
+      updateAgentButtons();
+
+      audio.onended = () => {
+        state.agent.busy = false;
+        updateAgentButtons();
+        if (state.agent.active) {
+          setAgentState("Listening again...");
+          setTimeout(beginAgentListening, 450);
+        } else {
+          setAgentState("Idle");
+        }
+      };
+
+      await audio.play();
+    }
+
+    function stopAgent() {
+      state.agent.active = false;
+      state.agent.busy = false;
+      clearAgentTimers();
+
+      if (state.agent.recorder && state.agent.recorder.state === "recording") {
+        state.agent.recorder.onstop = () => {
+          clearAgentTimers();
+          stopAgentStream();
+          state.agent.recorder = null;
+          updateAgentButtons();
+        };
+        state.agent.recorder.stop();
+      } else {
+        stopAgentStream();
+      }
+
+      const audio = $("agentAudio");
+      audio.pause();
+      audio.currentTime = 0;
+      setAgentState("Idle");
+      updateAgentButtons();
+    }
+
+    function resetAgent() {
+      if (state.agent.active) return;
+      state.agent.conversation = [];
+      state.agent.turn = 0;
+      if (state.agent.audioUrl) URL.revokeObjectURL(state.agent.audioUrl);
+      state.agent.audioUrl = null;
+      $("agentAudio").removeAttribute("src");
+      setAgentState("Idle");
+      renderAgentConversation();
+    }
+
+    async function generateTts() {
+      const text = $("ttsText").value.trim();
+      if (!text) {
+        setMessage("ttsStatus", "Enter text first.", "error");
+        return;
+      }
+
+      $("generateTts").disabled = true;
+      $("downloadTts").disabled = true;
+      setMessage("ttsStatus", "Generating speech...");
+
+      try {
+        const outputFormat = $("ttsFormat").value;
+        const response = await fetch(`${voiceApiBase}/tts/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            target_language_code: $("ttsLanguage").value,
+            speaker: $("ttsSpeaker").value,
+            model: "bulbul:v3",
+            pace: Number($("ttsPace").value || 1),
+            output_format: outputFormat
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(await readError(response));
+        }
+
+        const audioBlob = await response.blob();
+        if (state.lastAudioUrl) URL.revokeObjectURL(state.lastAudioUrl);
+        state.lastAudioBlob = audioBlob;
+        state.lastAudioFormat = outputFormat;
+        state.lastAudioUrl = URL.createObjectURL(audioBlob);
+        $("ttsAudio").src = state.lastAudioUrl;
+        $("downloadTts").disabled = false;
+        setMessage("ttsStatus", "Audio ready.", "ok");
+      } catch (error) {
+        setMessage("ttsStatus", error.message, "error");
+      } finally {
+        $("generateTts").disabled = false;
+      }
+    }
+
+    function downloadTts() {
+      if (!state.lastAudioBlob) return;
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(state.lastAudioBlob);
+      link.download = `sarvam-tts.${state.lastAudioFormat}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+
+    function buildSttForm(file) {
+      const form = new FormData();
+      form.append("file", file, file.name || "recording.webm");
+      const language = $("sttLanguage").value;
+      if (language) form.append("language_code", language);
+      form.append("model", "saaras:v3");
+      form.append("mode", $("sttMode").value);
+      return form;
+    }
+
+    function cleanMimeType(mimeType) {
+      return (mimeType || "audio/webm").split(";")[0].trim().toLowerCase();
+    }
+
+    async function transcribeBlob(file) {
+      setMessage("sttStatus", "Transcribing audio...");
+      $("sttResult").textContent = "";
+
+      try {
+        const response = await fetch(`${voiceApiBase}/stt/transcribe`, {
+          method: "POST",
+          body: buildSttForm(file)
+        });
+
+        if (!response.ok) {
+          throw new Error(await readError(response));
+        }
+
+        const data = await response.json();
+        $("sttResult").textContent = [
+          data.transcript || "",
+          "",
+          `Language: ${data.language_code || "unknown"}`,
+          `Probability: ${data.language_probability ?? "n/a"}`,
+          `Request: ${data.request_id || "n/a"}`
+        ].join("\n");
+        setMessage("sttStatus", "Transcript ready.", "ok");
+      } catch (error) {
+        $("sttResult").textContent = "";
+        setMessage("sttStatus", error.message, "error");
+      }
+    }
+
+    async function transcribeSelectedFile() {
+      const file = $("audioFile").files[0];
+      if (!file) {
+        setMessage("sttStatus", "Choose an audio file first.", "error");
+        return;
+      }
+
+      await transcribeBlob(file);
+    }
+
+    async function startRecording() {
+      const supportMessage = microphoneSupportMessage();
+      if (supportMessage) {
+        setMessage("sttStatus", supportMessage, "error");
+        return;
+      }
+
+      if (state.agent.active) {
+        setMessage("sttStatus", "Stop the Voice Agent before using the standalone recorder.", "error");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.chunks = [];
+        const recorderOptions = MediaRecorder.isTypeSupported("audio/webm")
+          ? { mimeType: "audio/webm" }
+          : undefined;
+        state.recorder = new MediaRecorder(stream, recorderOptions);
+        state.recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) state.chunks.push(event.data);
+        };
+        state.recorder.onstop = async () => {
+          clearInterval(state.meterTimer);
+          $("recordMeter").style.width = "0%";
+          stream.getTracks().forEach((track) => track.stop());
+          const blob = new Blob(state.chunks, { type: cleanMimeType(state.recorder.mimeType) });
+          const file = new File([blob], "recording.webm", { type: blob.type });
+          await transcribeBlob(file);
+        };
+
+        state.recorder.start(250);
+        $("startRecording").disabled = true;
+        $("stopRecording").disabled = false;
+        setMessage("sttStatus", "Recording...");
+
+        let width = 12;
+        state.meterTimer = setInterval(() => {
+          width = width >= 94 ? 12 : width + 8;
+          $("recordMeter").style.width = `${width}%`;
+        }, 180);
+      } catch (error) {
+        setMessage("sttStatus", error.message, "error");
+      }
+    }
+
+    function stopRecording() {
+      if (!state.recorder) return;
+      $("stopRecording").disabled = true;
+      $("startRecording").disabled = false;
+      setMessage("sttStatus", "Preparing recording...");
+      state.recorder.stop();
+    }
+
+    $("startAgent").addEventListener("click", startAgent);
+    $("sendAgentTurn").addEventListener("click", stopCurrentAgentRecording);
+    $("stopAgent").addEventListener("click", stopAgent);
+    $("resetAgent").addEventListener("click", resetAgent);
+    $("loadProfileData").addEventListener("click", loadProfileData);
+    $("fillFormsOnPage").addEventListener("click", fillFormsFromProfile);
+    $("refreshProfilePreview").addEventListener("click", refreshProfilePreview);
+    $("fillItr1Form").addEventListener("click", async () => {
+      if (!state.profile.loaded || !state.profile.data) {
+        await loadProfileData();
+      }
+      const result = fillItr1FormFromProfile();
+      if (result.filled) {
+        setMessage("profileStatus", `Filled ${result.filled} ITR-1 fields from data.json.`, "ok");
+      } else {
+        setMessage("profileStatus", "No ITR-1 fields were filled.", "error");
+      }
+    });
+    $("clearItr1Form").addEventListener("click", clearItr1Form);
+    Object.entries(RELATED_FORM_BUTTON_IDS).forEach(([key, buttonId]) => {
+      $(buttonId).addEventListener("click", async () => {
+        if (!state.profile.loaded || !state.profile.data) {
+          await loadProfileData();
+        }
+
+        const result = fillRelatedFormByKey(key, state.profile.data);
+        if (result) {
+          setMessage("profileStatus", `Filled ${RELATED_FORMS[key].label} with ${result} fields from data.json.`, "ok");
+        } else {
+          setMessage("profileStatus", `No fields were filled for ${RELATED_FORMS[key].label}.`, "error");
+        }
+      });
+    });
+    $("clearRelatedForms").addEventListener("click", () => {
+      clearRelatedForms();
+      setMessage("profileStatus", "Cleared related forms.", "ok");
+    });
+    $("generateTts").addEventListener("click", generateTts);
+    $("downloadTts").addEventListener("click", downloadTts);
+    $("transcribeFile").addEventListener("click", transcribeSelectedFile);
+    $("startRecording").addEventListener("click", startRecording);
+    $("stopRecording").addEventListener("click", stopRecording);
+
+    checkHealth();
+    loadProfileData();
+    renderItr1Summary();
+    Object.keys(RELATED_FORMS).forEach((key) => renderRelatedSummary(key));
+    renderAgentConversation();
+    const supportMessage = microphoneSupportMessage();
+    if (supportMessage) setMessage("sttStatus", supportMessage, "error");
+  </script>
+</body>
+</html>

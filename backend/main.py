@@ -10,8 +10,9 @@ import uvicorn
 
 from finpilot import config
 from finpilot.db.mongo import init_db
-from finpilot.api.routers import users, ingest, agents, calendar
 
+from finpilot.api.routers import users, ingest, agents
+from voice_agent import app as voice_agent_app
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,6 +42,9 @@ app.include_router(users.router)
 app.include_router(ingest.router)
 app.include_router(agents.router)
 app.include_router(calendar.router)
+
+# Mount voice-agent endpoints under a dedicated prefix
+app.mount("/voice-agent", voice_agent_app)
 
 
 @app.get("/health", tags=["System"])
