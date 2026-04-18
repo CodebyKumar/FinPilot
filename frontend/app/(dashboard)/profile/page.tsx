@@ -299,12 +299,12 @@ export default function ProfilePage() {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Profile ID Details</div>
-          <div style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
+          {/* <div style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
             App User ID: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{profileIdentifiers.userId}</span>
-          </div>
+          </div> */}
           {profileIdentifiers.backendUserId && (
             <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-              Mongo User ID: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{profileIdentifiers.backendUserId}</span>
+              User ID: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{profileIdentifiers.backendUserId}</span>
             </div>
           )}
         </div>
