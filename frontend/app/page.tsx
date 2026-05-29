@@ -1,12 +1,28 @@
 import Link from 'next/link';
-import { Bot, CalendarDays, ChartNoAxesCombined, FileText, Lock, Zap } from 'lucide-react';
+import { Bot, CalendarDays, ChartNoAxesCombined, FileText, Lock, Wallet, Zap } from 'lucide-react';
 
 export default function Home() {
   return (
     <main style={{ background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh', padding: '2rem' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <header style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'center' }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              textDecoration: 'none',
+              color: 'var(--indigo)',
+            }}
+          >
+            <Wallet size={32} strokeWidth={2.2} />
+            <span style={{ fontSize: '3.1rem', fontFamily: 'Syne', fontWeight: 700, lineHeight: 1 }}>FinPilot</span>
+          </Link>
+        </header>
+
         {/* Hero Banner */}
-        <section style={{ marginBottom: '4rem', textAlign: 'center', paddingTop: '4rem' }}>
+        <section style={{ marginBottom: '4rem', textAlign: 'center', paddingTop: '1rem' }}>
           <h1 style={{ fontSize: '3.5rem', fontFamily: 'Syne', fontWeight: 800, marginBottom: '1rem', lineHeight: 1.2 }}>
             Your AI CFO Assistant
           </h1>
